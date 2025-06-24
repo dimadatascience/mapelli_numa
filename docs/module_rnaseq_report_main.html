@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Gianluca Alessio Mariani" />
+
+
+<title>Bulk RNAseq report</title>
+
+<script src="site_libs/header-attrs-2.24/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/united.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<script src="site_libs/navigation-1.1/codefolding.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/htmlwidgets-1.6.2/htmlwidgets.js"></script>
+<link href="site_libs/datatables-css-0.0.0/datatables-crosstalk.css" rel="stylesheet" />
+<script src="site_libs/datatables-binding-0.29/datatables.js"></script>
+<link href="site_libs/dt-core-1.13.4/css/jquery.dataTables.min.css" rel="stylesheet" />
+<link href="site_libs/dt-core-1.13.4/css/jquery.dataTables.extra.css" rel="stylesheet" />
+<script src="site_libs/dt-core-1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="site_libs/jszip-1.13.4/jszip.min.js"></script>
+<script src="site_libs/pdfmake-1.13.4/pdfmake.js"></script>
+<script src="site_libs/pdfmake-1.13.4/vfs_fonts.js"></script>
+<link href="site_libs/dt-ext-buttons-1.13.4/css/buttons.dataTables.min.css" rel="stylesheet" />
+<script src="site_libs/dt-ext-buttons-1.13.4/js/dataTables.buttons.min.js"></script>
+<script src="site_libs/dt-ext-buttons-1.13.4/js/buttons.html5.min.js"></script>
+<script src="site_libs/dt-ext-buttons-1.13.4/js/buttons.colVis.min.js"></script>
+<script src="site_libs/dt-ext-buttons-1.13.4/js/buttons.print.min.js"></script>
+<link href="site_libs/crosstalk-1.2.0/css/crosstalk.min.css" rel="stylesheet" />
+<script src="site_libs/crosstalk-1.2.0/js/crosstalk.min.js"></script>
+<script src="site_libs/plotly-binding-4.10.2/plotly.js"></script>
+<script src="site_libs/typedarray-0.1/typedarray.min.js"></script>
+<link href="site_libs/plotly-htmlwidgets-css-2.11.1/plotly-htmlwidgets.css" rel="stylesheet" />
+<script src="site_libs/plotly-main-2.11.1/plotly-latest.min.js"></script>
+
+<link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/main/img/reproducible.png">
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+<style type="text/css">
+.code-folding-btn { margin-bottom: 4px; }
+</style>
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Mapelli_DESeq_GO</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+<div class="btn-group pull-right float-right">
+<button type="button" class="btn btn-default btn-xs btn-secondary btn-sm dropdown-toggle" data-toggle="dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span>Code</span> <span class="caret"></span></button>
+<ul class="dropdown-menu dropdown-menu-right" style="min-width: 50px;">
+<li><a id="rmd-show-all-code" href="#">Show All Code</a></li>
+<li><a id="rmd-hide-all-code" href="#">Hide All Code</a></li>
+</ul>
+</div>
+
+
+
+<h1 class="title toc-ignore">Bulk RNAseq report</h1>
+<h4 class="author">Gianluca Alessio Mariani</h4>
+<h4 class="date">22/05/2025</h4>
+
+</div>
+
+
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span>
+workflowr <span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span>
+</button>
+</p>
+<div id="workflowr-report" class="collapse">
+<ul class="nav nav-tabs">
+<li class="active">
+<a data-toggle="tab" href="#summary">Summary</a>
+</li>
+<li>
+<a data-toggle="tab" href="#checks"> Checks <span
+class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span>
+</a>
+</li>
+<li>
+<a data-toggle="tab" href="#versions">Past versions</a>
+</li>
+</ul>
+<div class="tab-content">
+<div id="summary" class="tab-pane fade in active">
+<p>
+<strong>Last updated:</strong> 2025-06-24
+</p>
+<p>
+<strong>Checks:</strong> <span
+class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 7
+<span class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span> 0
+</p>
+<p>
+<strong>Knit directory:</strong> <code>mapelli_numa/</code> <span
+class="glyphicon glyphicon-question-sign" aria-hidden="true"
+title="This is the local directory in which the code in this file was executed.">
+</span>
+</p>
+<p>
+This reproducible <a href="https://rmarkdown.rstudio.com">R Markdown</a>
+analysis was created with <a
+  href="https://github.com/workflowr/workflowr">workflowr</a> (version
+1.7.1). The <em>Checks</em> tab describes the reproducibility checks
+that were applied when the results were created. The <em>Past
+versions</em> tab lists the development history.
+</p>
+<hr>
+</div>
+<div id="checks" class="tab-pane fade">
+<div id="workflowr-checks" class="panel-group">
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguptodate">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>R Markdown file:</strong> up-to-date
+</a>
+</p>
+</div>
+<div id="strongRMarkdownfilestronguptodate"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great! Since the R Markdown file has been committed to the Git
+repository, you know the exact version of the code that produced these
+results.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+</p>
+</div>
+<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! The global environment was empty. Objects defined in the
+global environment can affect the analysis in your R Markdown file in
+unknown ways. For reproduciblity it’s best to always run the code in an
+empty environment.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed20250522code">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Seed:</strong>
+<code>set.seed(20250522)</code> </a>
+</p>
+</div>
+<div id="strongSeedstrongcodesetseed20250522code"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>The command <code>set.seed(20250522)</code> was run prior to running
+the code in the R Markdown file. Setting a seed ensures that any results
+that rely on randomness, e.g. subsampling or permutations, are
+reproducible.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Session information:</strong>
+recorded </a>
+</p>
+</div>
+<div id="strongSessioninformationstrongrecorded"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Recording the operating system, R version, and package
+versions is critical for reproducibility.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Cache:</strong> none </a>
+</p>
+</div>
+<div id="strongCachestrongnone" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Nice! There were no cached chunks for this analysis, so you can be
+confident that you successfully produced the results during this
+run.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
+</p>
+</div>
+<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Using relative paths to the files within your workflowr
+project makes it easier to run your code on other machines.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomdimadatasciencemapellinumatreeb1c15424dbf7c22acb74644dde29c844c1540ad0targetblankb1c1542a">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Repository version:</strong>
+<a href="https://github.com/dimadatascience/mapelli_numa/tree/b1c15424dbf7c22acb74644dde29c844c1540ad0" target="_blank">b1c1542</a>
+</a>
+</p>
+</div>
+<div
+id="strongRepositoryversionstrongahrefhttpsgithubcomdimadatasciencemapellinumatreeb1c15424dbf7c22acb74644dde29c844c1540ad0targetblankb1c1542a"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>
+Great! You are using Git for version control. Tracking code development
+and connecting the code version to the results is critical for
+reproducibility.
+</p>
+<p>
+The results in this page were generated with repository version
+<a href="https://github.com/dimadatascience/mapelli_numa/tree/b1c15424dbf7c22acb74644dde29c844c1540ad0" target="_blank">b1c1542</a>.
+See the <em>Past versions</em> tab to see a history of the changes made
+to the R Markdown and HTML files.
+</p>
+<p>
+Note that you need to be careful to ensure that all relevant files for
+the analysis have been committed to Git prior to generating the results
+(you can use <code>wflow_publish</code> or
+<code>wflow_git_commit</code>). workflowr only checks the R Markdown
+file, but you know if there are other scripts or data files that it
+depends on. Below is the status of the Git repository when the results
+were generated:
+</p>
+<pre><code>
+Ignored files:
+    Ignored:    .Rhistory
+    Ignored:    .Rproj.user/
+    Ignored:    data/
+
+Untracked files:
+    Untracked:  output/gse_results/
+
+Unstaged changes:
+    Modified:   analysis/module_rnaseq_report.Rmd
+
+</code></pre>
+<p>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not
+included in this status report because it is ok for generated content to
+have uncommitted changes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</div>
+<div id="versions" class="tab-pane fade">
+
+<p>
+These are the previous versions of the repository in which changes were
+made to the R Markdown
+(<code>analysis/module_rnaseq_report_main.Rmd</code>) and HTML
+(<code>docs/module_rnaseq_report_main.html</code>) files. If you’ve
+configured a remote Git repository (see <code>?wflow_git_remote</code>),
+click on the hyperlinks in the table below to view the files as they
+were in that past version.
+</p>
+<div class="table-responsive">
+<table class="table table-condensed table-hover">
+<thead>
+<tr>
+<th>
+File
+</th>
+<th>
+Version
+</th>
+<th>
+Author
+</th>
+<th>
+Date
+</th>
+<th>
+Message
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/dimadatascience/mapelli_numa/blob/b1c15424dbf7c22acb74644dde29c844c1540ad0/analysis/module_rnaseq_report_main.Rmd" target="_blank">b1c1542</a>
+</td>
+<td>
+Yinxiu Zhan
+</td>
+<td>
+2025-06-24
+</td>
+<td>
+Add introduction report
+</td>
+</tr>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/dimadatascience/mapelli_numa/blob/49f8ea7c274cb7b788d5069506f44771e083fd4b/analysis/module_rnaseq_report_main.Rmd" target="_blank">49f8ea7</a>
+</td>
+<td>
+Yinxiu Zhan
+</td>
+<td>
+2025-06-23
+</td>
+<td>
+:sparkles: Add backbone
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<pre class="r"><code>knitr::opts_chunk$set(echo       = FALSE,
+                      message    = FALSE,
+                      warning    = FALSE,
+                      cache      = FALSE,
+                      autodep    = TRUE,
+                      fig.align  = &#39;center&#39;,
+                      fig.width  = 10,
+                      fig.height = 8)</code></pre>
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<div id="temporary-draft" class="section level4">
+<h4>TEMPORARY DRAFT</h4>
+<p>These sequencing experiments are part of our ongoing investigation
+into the nuclear functions of NuMA (Nuclear Mitotic Apparatus protein)
+in human retinal pigment epithelial (RPE) cells, a line of inquiry
+previously initiated by your group. NuMA is a multifunctional protein,
+primarily known for its essential role in mitotic spindle organization;
+however, increasing evidence suggests that it may also influence nuclear
+architecture and transcriptional regulation during interphase.</p>
+<p>In the present study, we modified both the NuMA degradation protocol
+and the cell synchronization strategy to minimize perturbations to the
+transcriptional landscape of the cells. This approach aims to better
+isolate the specific effects of NuMA depletion from secondary effects
+related to synchronization or stress responses.</p>
+<p>The dataset includes biological triplicates for each of the following
+four experimental conditions:</p>
+<ul>
+<li><p>S–NuMA: synchronized cells in which NuMA has been degraded using
+the auxin-inducible degron (AID) system.</p></li>
+<li><p>S+NuMA: synchronized cells expressing wild-type NuMA, serving as
+the matched control.</p></li>
+<li><p>NS–NuMA: non-synchronized cells with NuMA degradation.</p></li>
+<li><p>NS+NuMA: non-synchronized cells with intact NuMA expression,
+serving as the control.</p></li>
+</ul>
+<p>These conditions allow us to disentangle the transcriptional effects
+of NuMA depletion from those induced by cell cycle synchronization,
+providing a clearer view of NuMA’s role in nuclear regulation.</p>
+</div>
+<div id="overview-of-the-analysis-steps" class="section level3">
+<h3>Overview of the analysis steps</h3>
+<ol style="list-style-type: decimal">
+<li>Quality control of raw data with <a
+href="https://www.bioinformatics.babraham.ac.uk/projects/fastqc/">FastQC</a></li>
+<li>Adapter and quality trimming with <a
+href="https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/">Trim
+Galore!</a></li>
+<li>Read alignment with <a
+href="https://github.com/alexdobin/STAR">STAR</a>.</li>
+<li>Estimation of transcript and gene expression with <a
+href="https://combine-lab.github.io/salmon/">Salmon</a>.</li>
+<li>Differential gene expression analysis with <a
+href="http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html">DESeq2</a>
+(v1.49.1)</li>
+<li>Gene set enrichment analysis with <a
+href="https://bioconductor.org/packages/release/bioc/html/clusterProfiler.html">ClusterProfiler</a>
+(v4.17.0)</li>
+</ol>
+<p>The steps from 1 to 4 have been performed using <a
+href="https://nf-co.re/rnaseq">nf-core/rnaseq</a> v3.14.0. This report
+includes analysis from step 5 and 6</p>
+</div>
+</div>
+<div id="samples-datatable" class="section level2">
+<h2>Samples Datatable</h2>
+<p>Below we present the table containing all the samples analyzed in
+this report.</p>
+<p>Each sample is described by:</p>
+<ul>
+<li><p>sample: sample name defined a priori in the previous step of RNA
+seq analysis</p></li>
+<li><p>sample_description: a descriptive version of the sample name to
+improve clarity in the presentation of data</p></li>
+<li><p>batch: the experimental batch of each sample</p></li>
+<li><p>condition: the treatment condition (e.g. control, knockdown,
+treated, etc…)</p></li>
+<li><p>condition_description: a descriptive version of the condition to
+improve clarity in the presentation of data</p></li>
+</ul>
+<div class="datatables html-widget html-fill-item-overflow-hidden html-fill-item" id="htmlwidget-b65ad5a5d438e96a9478" style="width:100%;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-b65ad5a5d438e96a9478">{"x":{"filter":"none","vertical":false,"extensions":["Buttons"],"data":[["S61876_NS_plus_NuMA_A","S61877_NS_plus_NuMA_B","S61878_NS_plus_NuMA_C","S61879_NS-NuMA_A","S61880_NS-NuMA_B","S61881_NS-NuMA_C","S61882_S_plus_NuMA_A","S61883_S_plus_NuMA_B","S61884_S_plus_NuMA_C","S61885_S-NuMA_A","S61886_S-NuMA_B","S61887_S-NuMA_C"],["Non-synchronized NuMA+ A","Non-synchronized NuMA+ B","Non-synchronized NuMA+ C","Non-synchronized NuMA- A","Non-synchronized NuMA- B","Non-synchronized NuMA- C","Synchronized NuMA+ A","Synchronized NuMA+ B","Synchronized NuMA+ C","Synchronized NuMA- A","Synchronized NuMA- B","Synchronized NuMA- C"],["1","1","1","1","1","1","1","1","1","1","1","1"],["NS_plus_NuMA","NS_plus_NuMA","NS_plus_NuMA","NS_no_NuMA","NS_no_NuMA","NS_no_NuMA","S_plus_NuMA","S_plus_NuMA","S_plus_NuMA","S_no_NuMA","S_no_NuMA","S_no_NuMA"],["Non-synchronized NuMA+","Non-synchronized NuMA+","Non-synchronized NuMA+","Non-synchronized NuMA-","Non-synchronized NuMA-","Non-synchronized NuMA-","Synchronized NuMA+","Synchronized NuMA+","Synchronized NuMA+","Synchronized NuMA-","Synchronized NuMA-","Synchronized NuMA-"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th>sample<\/th>\n      <th>sample_description<\/th>\n      <th>batch<\/th>\n      <th>condition<\/th>\n      <th>condition_description<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"dom":"Blfrtip","buttons":["copy","csv","excel","pdf","print"],"lengthMenu":[[10,25,50,-1],["10","25","50","All"]],"columnDefs":[],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+<div id="batch-effect-correction" class="section level3">
+<h3>Batch Effect Correction</h3>
+<p>Differential expression analysis is performed using a custom
+function, which accounts for batch effect. A batch effect occurs when in
+an experiment non-biological factors, like laboratory conditions or
+instruments used, cause changes in the data produced by the
+experiment.<br><br>In this analysis the samples have been collected in
+only 1 batch, so no batch correction will be applied.</p>
+</div>
+</div>
+<div id="comparisons-definition" class="section level2">
+<h2>Comparisons definition</h2>
+<p>The comparisons included in the report are listed below. Each
+comparison group includes two subsets of samples: an ‘treatment’ group
+and a control group. Differential gene expression analysis is conducted
+by comparing the ‘treatment’ samples to the control samples within each
+group.</p>
+<p><br><br>➤ Group: 1, (Non-synchronized NuMA- vs Non-synchronized
+NuMA+)<br><br>    - <strong>Experimental samples</strong>
+(Non-synchronized NuMA-,
+e):<br>        S61879_NS-NuMA_A<br>        S61880_NS-NuMA_B<br>        S61881_NS-NuMA_C<br><br>    -
+<strong>Control Samples</strong> (Non-synchronized NuMA+,
+c/tc):<br>        S61876_NS_plus_NuMA_A<br>        S61877_NS_plus_NuMA_B<br>        S61878_NS_plus_NuMA_C<br><br><br>➤
+Group: 2, (Synchronized NuMA- vs Synchronized NuMA+)<br><br>    -
+<strong>Experimental samples</strong> (Synchronized NuMA-,
+e):<br>        S61885_S-NuMA_A<br>        S61886_S-NuMA_B<br>        S61887_S-NuMA_C<br><br>    -
+<strong>Control Samples</strong> (Synchronized NuMA+,
+c/tc):<br>        S61882_S_plus_NuMA_A<br>        S61883_S_plus_NuMA_B<br>        S61884_S_plus_NuMA_C<br></p>
+</div>
+<div id="pca-analysis" class="section level2">
+<h2>PCA Analysis</h2>
+<p>For the PCA (principal component analysis) and correlation analyses,
+gene expression data were normalized using the variance stabilizing
+transformation (VST) method implemented in DESeq2.</p>
+<p>Below, we present the PPCA performed on the complete set of samples.
+PCA was used to explore global variance in gene expression profiles
+across all samples.</p>
+<p>The primary objectives of this analysis are to:</p>
+<ul>
+<li><p>Assess sample quality</p></li>
+<li><p>Determine whether samples cluster according to experimental
+conditions, suggesting biologically meaningful variation</p></li>
+<li><p>Identify potential outliers</p></li>
+<li><p>Detect batch effects or other sources of unwanted
+variation</p></li>
+</ul>
+<p>By reducing the high-dimensional gene expression data into a few
+principal components, PCA provides a visual summary of the dataset’s
+structure.</p>
+<div class="plotly html-widget html-fill-item-overflow-hidden html-fill-item" id="htmlwidget-5f15145e49408dabeb5a" style="width:960px;height:768px;"></div>
+<script type="application/json" data-for="htmlwidget-5f15145e49408dabeb5a">{"x":{"visdat":{"1bccb04017a955":["function () ","plotlyVisDat"]},"cur_data":"1bccb04017a955","attrs":{"1bccb04017a955":{"x":{},"y":{},"text":{},"mode":"markers","color":{},"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"type":"scatter"}},"layout":{"margin":{"b":40,"l":60,"t":25,"r":10},"title":"PCA: PCA analysis all samples","xaxis":{"domain":[0,1],"automargin":true,"title":"PC1 (44.5%)"},"yaxis":{"domain":[0,1],"automargin":true,"title":"PC2 (20.5%)"},"hovermode":"closest","showlegend":true},"source":"A","config":{"modeBarButtonsToAdd":["hoverclosest","hovercompare"],"showSendToCloud":false},"data":[{"x":[-6.5213549254240952,-7.1582017656539758,-7.0964469252694906],"y":[-4.5636550764562696,-4.5716498521241844,-5.303548425721738],"text":["S61879_NS.NuMA_A","S61880_NS.NuMA_B","S61881_NS.NuMA_C"],"mode":"markers","type":"scatter","name":"Non-synchronized NuMA-","marker":{"color":"rgba(102,194,165,1)","line":{"color":"rgba(102,194,165,1)"}},"textfont":{"color":"rgba(102,194,165,1)"},"error_y":{"color":"rgba(102,194,165,1)"},"error_x":{"color":"rgba(102,194,165,1)"},"line":{"color":"rgba(102,194,165,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[-12.134593955925249,-12.413029633068145,-11.323634774398922],"y":[3.6364033764141448,2.7306624256003049,2.7085272703034322],"text":["S61876_NS_plus_NuMA_A","S61877_NS_plus_NuMA_B","S61878_NS_plus_NuMA_C"],"mode":"markers","type":"scatter","name":"Non-synchronized NuMA+","marker":{"color":"rgba(252,141,98,1)","line":{"color":"rgba(252,141,98,1)"}},"textfont":{"color":"rgba(252,141,98,1)"},"error_y":{"color":"rgba(252,141,98,1)"},"error_x":{"color":"rgba(252,141,98,1)"},"line":{"color":"rgba(252,141,98,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[11.389849634752782,10.264646700932367,11.17779427815864],"y":[-4.0665576796570901,-4.101504921735831,-3.3045846555162726],"text":["S61885_S.NuMA_A","S61886_S.NuMA_B","S61887_S.NuMA_C"],"mode":"markers","type":"scatter","name":"Synchronized NuMA-","marker":{"color":"rgba(141,160,203,1)","line":{"color":"rgba(141,160,203,1)"}},"textfont":{"color":"rgba(141,160,203,1)"},"error_y":{"color":"rgba(141,160,203,1)"},"error_x":{"color":"rgba(141,160,203,1)"},"line":{"color":"rgba(141,160,203,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[7.7249798220014938,8.2137444840515599,7.8762470598430392],"y":[4.9993759109057985,6.1585969408919246,5.677934687095779],"text":["S61882_S_plus_NuMA_A","S61883_S_plus_NuMA_B","S61884_S_plus_NuMA_C"],"mode":"markers","type":"scatter","name":"Synchronized NuMA+","marker":{"color":"rgba(231,138,195,1)","line":{"color":"rgba(231,138,195,1)"}},"textfont":{"color":"rgba(231,138,195,1)"},"error_y":{"color":"rgba(231,138,195,1)"},"error_x":{"color":"rgba(231,138,195,1)"},"line":{"color":"rgba(231,138,195,1)"},"xaxis":"x","yaxis":"y","frame":null}],"highlight":{"on":"plotly_click","persistent":false,"dynamic":false,"selectize":false,"opacityDim":0.20000000000000001,"selected":{"opacity":1},"debounce":0},"shinyEvents":["plotly_hover","plotly_click","plotly_selected","plotly_relayout","plotly_brushed","plotly_brushing","plotly_clickannotation","plotly_doubleclick","plotly_deselect","plotly_afterplot","plotly_sunburstclick"],"base_url":"https://plot.ly"},"evals":[],"jsHooks":[]}</script>
+<p><strong>INTEPRETATION MISSING</strong></p>
+</div>
+<div id="correlation-analysis" class="section level2">
+<h2>Correlation analysis</h2>
+<p>The Spearman correlation heatmap provides a global view of the
+similarity between gene expression profiles across all samples. We
+calculated the pairwise Spearman correlation coefficients between
+samples and visualized them in a heatmap. Rows and columns are
+hierarchically clustered based on these correlations to reveal patterns
+of similarity and potential groupings among samples.</p>
+<div id="spearman-correlation-general-interpretation"
+class="section level3">
+<h3><strong>Spearman Correlation: General Interpretation</strong></h3>
+<div id="high-correlation-values-e.g.-0.98" class="section level4">
+<h4><strong>High Correlation Values</strong> (e.g., &gt; 0.98)</h4>
+<p><em>Between replicates of the same condition:</em></p>
+<ul>
+<li><p>A very good quality signal</p></li>
+<li><p>Indicates that replicates behave consistently</p></li>
+<li><p>Suggests well-defined and reproducible biological
+conditions</p></li>
+</ul>
+<p><em>Between different conditions:</em></p>
+<ul>
+<li><p>May indicate minor transcriptional differences</p></li>
+<li><p>Or poor separation due to contamination or mislabeling</p></li>
+</ul>
+</div>
+<div id="lower-correlation-values-e.g.-0.95" class="section level4">
+<h4><strong>Lower Correlation Values</strong> (e.g., &lt; 0.95)</h4>
+<p><em>Between replicates of the same condition:</em></p>
+<ul>
+<li><p>May suggest technical or biological issues:</p>
+<ul>
+<li><p>Library prep/sequencing errors</p></li>
+<li><p>Sample mix-up or mislabeling</p></li>
+<li><p>Biological heterogeneity</p></li>
+</ul></li>
+</ul>
+<p>In some cases, biological replicates may exhibit a certain degree of
+variability that cannot be entirely avoided. This is particularly true
+when samples are obtained from different individuals, such as
+patient-derived samples, even when all other experimental conditions are
+carefully controlled.</p>
+<p>Therefore, lower correlation values between replicates should not be
+interpreted in a standardized way, but rather evaluated in the specific
+biological and experimental context of the study.</p>
+<p><em>Between different conditions:</em></p>
+<ul>
+<li><p>Expected when conditions are biologically distinct</p></li>
+<li><p>If correlations are too similar to replicates, it may
+suggest:</p>
+<ul>
+<li><p>Weak treatment effects</p></li>
+<li><p>Few genes affected by the condition</p></li>
+</ul></li>
+</ul>
+</div>
+</div>
+<div id="spearman-correlation-heatmap" class="section level3">
+<h3>Spearman Correlation Heatmap</h3>
+<p>Below we present the heatmap associated spearman correlation.
+<strong>INTERPRETATION</strong></p>
+<p><img src="figure/module_rnaseq_report_main.Rmd/heatmap_correlation_plot-1.png" width="768" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+<div id="library-sizes" class="section level2">
+<h2>Library Sizes</h2>
+<p>A bar plot displaying total read counts per sample is shown below</p>
+<p><strong>INTERPRETATION</strong></p>
+<p><img src="figure/module_rnaseq_report_main.Rmd/counts_dds-1.png" width="768" style="display: block; margin: auto;" /></p>
+</div>
+<div id="violin-plot-of-vst-normalized-counts" class="section level2">
+<h2>Violin plot of VST-normalized counts</h2>
+<p>Below we present a violin plot of the VST-normalized read counts by
+sample.</p>
+<p>A violin plot of VST-normalized counts provides an overview of the
+global distribution of gene expression values across samples after
+normalization. This plot allows for the detection of potential outliers,
+technical biases, or inconsistencies in distribution across samples,
+which could affect downstream analyses. A consistent distribution of VST
+counts across samples suggests successful normalization and comparable
+expression profiles.</p>
+<p><img src="figure/module_rnaseq_report_main.Rmd/violin_dds-1.png" width="768" style="display: block; margin: auto;" /></p>
+<br>
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span>
+Session information
+</button>
+</p>
+<div id="workflowr-sessioninfo" class="collapse">
+<pre><code>R version 4.3.1 (2023-06-16)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 22.04.3 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3 
+LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.20.so;  LAPACK version 3.10.0
+
+locale:
+ [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+ [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
+ [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
+ [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] grid      stats4    stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+ [1] ReactomePA_1.44.0           CorLevelPlot_0.99.0        
+ [3] tibble_3.2.1                limma_3.56.2               
+ [5] gridExtra_2.3               WGCNA_1.72-1               
+ [7] fastcluster_1.2.3           dynamicTreeCut_1.63-1      
+ [9] dplyr_1.1.3                 clusterProfiler_4.8.3      
+[11] plotly_4.10.2               reshape_0.8.9              
+[13] ggplot2_3.4.3               gplots_3.1.3               
+[15] RColorBrewer_1.1-3          ComplexHeatmap_2.16.0      
+[17] rtracklayer_1.60.1          DESeq2_1.40.2              
+[19] SummarizedExperiment_1.30.2 Biobase_2.60.0             
+[21] MatrixGenerics_1.12.3       matrixStats_1.0.0          
+[23] GenomicRanges_1.52.0        GenomeInfoDb_1.36.3        
+[25] IRanges_2.34.1              S4Vectors_0.38.1           
+[27] BiocGenerics_0.46.0         reshape2_1.4.4             
+[29] git2r_0.32.0                DT_0.29                    
+[31] workflowr_1.7.1            
+
+loaded via a namespace (and not attached):
+  [1] splines_4.3.1            later_1.3.1              BiocIO_1.10.0           
+  [4] bitops_1.0-7             ggplotify_0.1.2          polyclip_1.10-4         
+  [7] preprocessCore_1.62.1    graph_1.78.0             rpart_4.1.19            
+ [10] XML_3.99-0.14            lifecycle_1.0.3          doParallel_1.0.17       
+ [13] rprojroot_2.0.3          processx_3.8.2           lattice_0.21-8          
+ [16] MASS_7.3-60              crosstalk_1.2.0          backports_1.4.1         
+ [19] magrittr_2.0.3           Hmisc_5.1-1              sass_0.4.7              
+ [22] rmarkdown_2.24           jquerylib_0.1.4          yaml_2.3.7              
+ [25] httpuv_1.6.11            cowplot_1.1.1            DBI_1.1.3               
+ [28] abind_1.4-5              zlibbioc_1.46.0          purrr_1.0.2             
+ [31] ggraph_2.1.0             RCurl_1.98-1.12          nnet_7.3-19             
+ [34] yulab.utils_0.0.9        rappdirs_0.3.3           tweenr_2.0.2            
+ [37] circlize_0.4.15          GenomeInfoDbData_1.2.10  enrichplot_1.20.1       
+ [40] ggrepel_0.9.3            tidytree_0.4.5           reactome.db_1.84.0      
+ [43] codetools_0.2-19         DelayedArray_0.26.7      DOSE_3.26.1             
+ [46] ggforce_0.4.1            tidyselect_1.2.0         shape_1.4.6             
+ [49] aplot_0.2.0              farver_2.1.1             viridis_0.6.4           
+ [52] base64enc_0.1-3          GenomicAlignments_1.36.0 jsonlite_1.8.7          
+ [55] GetoptLong_1.0.5         ellipsis_0.3.2           Formula_1.2-5           
+ [58] tidygraph_1.2.3          survival_3.5-5           iterators_1.0.14        
+ [61] foreach_1.5.2            tools_4.3.1              treeio_1.24.3           
+ [64] Rcpp_1.0.11              glue_1.6.2               xfun_0.40               
+ [67] qvalue_2.32.0            withr_2.5.0              fastmap_1.1.1           
+ [70] fansi_1.0.4              callr_3.7.3              caTools_1.18.2          
+ [73] digest_0.6.33            R6_2.5.1                 gridGraphics_0.5-1      
+ [76] colorspace_2.1-0         Cairo_1.6-1              GO.db_3.17.0            
+ [79] gtools_3.9.4             RSQLite_2.3.1            utf8_1.2.3              
+ [82] tidyr_1.3.0              generics_0.1.3           data.table_1.14.8       
+ [85] graphlayouts_1.0.0       httr_1.4.7               htmlwidgets_1.6.2       
+ [88] S4Arrays_1.0.6           scatterpie_0.2.1         graphite_1.46.0         
+ [91] whisker_0.4.1            pkgconfig_2.0.3          gtable_0.3.4            
+ [94] blob_1.2.4               impute_1.74.1            XVector_0.40.0          
+ [97] shadowtext_0.1.2         htmltools_0.5.6          fgsea_1.26.0            
+[100] clue_0.3-64              scales_1.2.1             png_0.1-8               
+[103] ggfun_0.1.2              knitr_1.44               rstudioapi_0.15.0       
+[106] rjson_0.2.21             checkmate_2.2.0          nlme_3.1-162            
+[109] cachem_1.0.8             GlobalOptions_0.1.2      stringr_1.5.0           
+[112] KernSmooth_2.23-22       parallel_4.3.1           HDO.db_0.99.1           
+[115] foreign_0.8-84           AnnotationDbi_1.62.2     restfulr_0.0.15         
+[118] pillar_1.9.0             vctrs_0.6.3              promises_1.2.1          
+[121] cluster_2.1.4            htmlTable_2.4.1          evaluate_0.21           
+[124] magick_2.7.5             cli_3.6.1                locfit_1.5-9.8          
+[127] compiler_4.3.1           Rsamtools_2.16.0         rlang_1.1.1             
+[130] crayon_1.5.2             labeling_0.4.3           ps_1.7.5                
+[133] getPass_0.2-4            plyr_1.8.8               fs_1.6.3                
+[136] stringi_1.7.12           viridisLite_0.4.2        BiocParallel_1.34.2     
+[139] munsell_0.5.0            Biostrings_2.68.1        lazyeval_0.2.2          
+[142] GOSemSim_2.26.1          Matrix_1.6-1             patchwork_1.1.3         
+[145] bit64_4.0.5              KEGGREST_1.40.0          igraph_1.5.1            
+[148] memoise_2.0.1            bslib_0.5.1              ggtree_3.8.2            
+[151] fastmatch_1.1-4          bit_4.0.5                downloader_0.4          
+[154] ape_5.7-1                gson_0.1.0              </code></pre>
+</div>
+</div>
+
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+https://docs.mathjax.org/en/latest/web/configuration.html. This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
