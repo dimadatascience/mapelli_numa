@@ -14,8 +14,10 @@ params:
   num_replicates: 3
   technical_control: null
   batch_effect: null
-  sample_info_file: "/hpcnfs/scratch/DIMA/gmariani/rna_seq/projects/Mapelli_DESeq_GO/data/samples_info.tsv"
-  dds_file: "/hpcnfs/scratch/DIMA/gmariani/rna_seq/projects/Mapelli_DESeq_GO/data/deseq2.dds.RData"
+  logfc: log2(2)
+  qvalue: 0.05
+  sample_info_file: "./data/samples_info.tsv"
+  dds_file: "./data/deseq2.dds.RData"
   exp:
     value:
       exp_tag: "NS_no_NuMA"
@@ -25,10 +27,6 @@ params:
       contr_tag: "NS_plus_NuMA"
       contr_name: "Non-synchronized NuMa+"
 ---
-
-```{r dynamic_title, results="asis", echo=FALSE}
-cat(paste0("# ", params$exp$exp_name, " vs ", params$contr$contr_name, "\n"))
-```
 
 ```{r}
 knitr::opts_chunk$set(echo       = FALSE,
@@ -41,53 +39,45 @@ knitr::opts_chunk$set(echo       = FALSE,
                       fig.height = 8)
 ```
 
-```{r setup}
+```{r parameters}
+min_sample = params$min_sample
+logfc=params$logfc
+qvalue=params$qvalue
+rdata_file=params$dds_file
+```
+
+```{r dynamic_title, results="asis", echo=FALSE}
+cat(paste0("# ", params$exp$exp_name, " vs ", params$contr$contr_name, "\n"))
+```
+
+The objective of this report is to investigate differential gene expression between the two conditions and to conduct gene ontology enrichment analysis to explore the biological functions involved.
+
+```{r libraries}
 source("src/__utils_rna_seq_functions.R")
 
-# LIBRARY
-if (!require("DT")) install.packages('DT')
-if (!require("git2r")) install.packages("git2r")
-
-library("DESeq2")
-library(rtracklayer)
+library(DESeq2)
 library(ComplexHeatmap)
 library(RColorBrewer)
-library(gplots) 
 library(ggplot2)
-library("DT")
-library(reshape)
-library(plotly)
-library(clusterProfiler)
+library(DT)
 library(dplyr)
-library(WGCNA)
-library(gridExtra)
-library("git2r")
-library("org.Hs.eg.db")
-library(limma)
 library(tibble)
-library(CorLevelPlot)
+library(clusterProfiler)
 library(ReactomePA)
+library(org.Hs.eg.db)
 
-# PARAMETERS
-min_sample = 2
-logfc=log2(2)
-qvalue=0.05
 org <- org.Hs.eg.db
 
-rdata_file=params$dds_file
-system("rm -r ./output/gse_results/")
-system("mkdir ./output/gse_results/")
 ```
 
 ```{r parameters_text, results="asis", echo=FALSE}
-cat("## Loading input data
+cat("## Parameters
 
-The first steps to start the analysis in R is to load the input data and establish the thresholds for the analysis:
+Below is the list of parameters used in this report to define differential gene expression.
 
 - min_sample = ", min_sample, ", minimum number of samples where the gene needs to have at least 1 read;
-- logfc = ", logfc, ", which represents the ratio between the expression level of a gene in the conditions considered, e.g. ", params$exp$exp_name, "and", params$contr$contr_name, ", expressed in  logarithmic scale (base 2); a positive log fold change for a gene, greater than 1, means that the expression of that specific gene is increased in ", params$exp$exp_name, " with respect to", params$contr$contr_name, "by a multiplicative factor 2^logfc;
-- qvalue = ", qvalue, ", that can be interpreted as false positive rate, the proportion of false positives among all positive results, which means avoid to detect differential expression of a gene that is not differentially expressed.
-LogFC and qvalue thresholds have been selected based on commonly used thresholds.")
+- logfc = ", logfc, "
+- qvalue = ", qvalue, ", Adjusted p-value threshold (false discovery rate)")
 ```
 
 ```{r load_data_samples, results="asis"}
@@ -225,7 +215,6 @@ design_formula <- as.formula(
 ```
 
 ```{r de_analysis_A, include=FALSE}
-
 titleA <- paste(expA, "vs", contrA)
 titleA_und <- gsub(" ", "_", titleA)
 
@@ -277,10 +266,8 @@ cat("Lowly expressed genes are removed to reduce noise. Lowly expressed genes ar
 ```
 
 ## PCA
-Below we present the PCA analysis conducted on the two specific conditions analyzed in this report.
 
-The main goal of this analysis is the same as the PCA conducted on all samples: 
-to assess whether samples cluster according to their experimental conditions, indicating biologically meaningful differences. 
+Below we present the PCA analysis conducted on the two specific conditions analyzed in this report.
 
 ```{r pca_A}
 mypcaAnalysis(
@@ -295,11 +282,7 @@ mypcaAnalysis(
 
 ### MA plot
 
-The MA plot is a widely used visualization in differential expression analysis that displays the relationship between the average expression (A) and the log fold change (M) for each gene. 
-It helps to identify genes that are significantly up- or down-regulated between conditions. 
-The x-axis represents the mean expression level across samples, while the y-axis shows the log fold change between groups. 
-Genes with large fold changes and sufficient expression tend to appear farther from the center horizontal line (log fold change = 0). 
-This plot allows for quick assessment of the overall distribution of differential expression results, highlights systematic biases, and aids in detecting artifacts or trends related to expression intensity.
+The MA plot is a widely used visualization in differential expression analysis that displays the relationship between the average expression (A) and the log fold change (M) for each gene.  The x-axis represents the mean expression level across samples, while the y-axis shows the log fold change between groups. 
 
 ```{r MA_plot_A, results="asis"}
 plots_A <- my_MA_andVolcano_plot(
@@ -315,8 +298,7 @@ plots_A$ma
 
 The Volcano plot is a graphical method to visualize differential expression results by combining statistical significance and magnitude of change for each gene. 
 It plots the log2 fold change on the x-axis against the negative log10 of the p-value (or adjusted p-value) on the y-axis. 
-Genes with both large fold changes and high statistical significance appear in the upper left (downregulated) and upper right (upregulated) corners of the plot. 
-This visualization effectively highlights genes that are both biologically relevant and statistically significant, facilitating the identification of potential targets for further study.
+
 
 ```{r Volcano_plot_A, results="asis"}
 plots_A$volcano
@@ -329,9 +311,7 @@ Below we present two tables, the first includes all the genes identified in the 
 
 ### Table of all genes
 
-In this table we can find all the genes identified in the previous RNA seq analysis.
-
-They are classified by:
+The columns in the table are:
 
   - baseMean: The average normalized count of a gene across all samples, reflecting its overall expression level in the dataset.
 
