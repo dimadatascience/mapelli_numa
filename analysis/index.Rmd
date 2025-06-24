@@ -17,5 +17,5 @@ This  website contains RNAseq data analyses for the NuMa project.
 
 # Bulk RNAseq data analysis
 
-- [Introduction](01_introduction.html)<span class="label btn-warning">new report</span>
+- [Background and whole experiment analysis](01_introduction.html)<span class="label btn-warning">new report</span>
 

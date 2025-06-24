@@ -1,5 +1,5 @@
 ---
-title: "Bulk RNAseq report"
+title: "Introduction to the analysis of bulk RNAseq in NuMa Project"
 output:
   workflowr::wflow_html:
     toc: true
