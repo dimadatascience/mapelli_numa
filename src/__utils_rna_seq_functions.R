@@ -1,3 +1,5 @@
+library(plotly)
+library(ComplexHeatmap)
 # Funzione per verificare quali variabili sono costanti
 check_constant_vars <- function(df, vars) {
   constant_vars <- sapply(vars, function(v) {
