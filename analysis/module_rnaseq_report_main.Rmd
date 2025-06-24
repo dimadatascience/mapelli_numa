@@ -10,35 +10,13 @@ date: "22/05/2025"
 author: "Gianluca Alessio Mariani"
 
 params:
-  sample_info_file: "/hpcnfs/scratch/DIMA/gmariani/rna_seq/projects/Mapelli_DESeq_GO/data/samples_info.tsv"
-  dds_file: "/hpcnfs/scratch/DIMA/gmariani/rna_seq/projects/Mapelli_DESeq_GO/data/deseq2.dds.RData"
-  introduction_file: "/hpcnfs/scratch/DIMA/gmariani/rna_seq/projects/Mapelli_DESeq_GO/data/main_description.txt" 
+  sample_info_file: "./data/samples_info.tsv"
+  dds_file: "./data/deseq2.dds.RData"
+  main_description: "./data/main_description.txt" 
+  min_sample: 2
+  logfc: log2(2)
+  qvalue: 0.05
 ---
-
-## Introduction
-
-#### TEMPORARY DRAFT
-```{r introduction, results="asis", echo=FALSE}
-text_lines <- readLines(params$introduction_file)
-cat(text_lines, sep = "\n")
-```
-
-#### TEMPORARY DRAFT
-
-
-### Overview of the analysis step
-
-1) Quality control of raw data with [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
-2) Adapter and quality trimming with [Trim Galore!](https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/)
-3) Read alignment with [STAR](https://github.com/alexdobin/STAR) STAR stands for Spliced Transcripts Alignment to a Reference, and has been shown to have high accuracy and outperforms other aligners by more than a factor of 50 in mapping speed, but it is memory intensive.
-4) Estimation of transcript and gene expression with [Salmon](https://combine-lab.github.io/salmon/) Salmon is used to take STAR alignments to the transcriptome and fastly quantify them, with minimal computational resources.
-5) Differential gene expression analysis with [DESeq2](http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html) (v1.49.1)
-6) Gene set enrichment analysis with [ClusterProfiler](https://bioconductor.org/packages/release/bioc/html/clusterProfiler.html) (v4.17.0)
-
-The steps from 1 to 4 have been performed using [nf-core/rnaseq](https://nf-co.re/rnaseq) v3.14.0 which is a bioinformatics pipeline that can be used to analyse RNA sequencing data obtained from organisms with a reference genome and annotation. 
-Data have been normalized with variance stabilizing transformation (VST) normalization using Deseq2. 
-
-This report includes analysis from step 5 and 6
 
 ```{r}
 knitr::opts_chunk$set(echo       = FALSE,
@@ -51,8 +29,36 @@ knitr::opts_chunk$set(echo       = FALSE,
                       fig.height = 8)
 ```
 
-```{r setup}
+```{r parameters}
+min_sample = params$min_sample
+logfc=params$logfc
+qvalue=params$qvalue
+rdata_file=params$dds_file
+```
 
+## Introduction
+
+#### TEMPORARY DRAFT
+
+```{r introduction, results="asis", echo=FALSE}
+text_lines <- readLines(params$main_description)
+cat(text_lines, sep = "\n")
+```
+
+
+### Overview of the analysis steps
+
+1) Quality control of raw data with [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
+2) Adapter and quality trimming with [Trim Galore!](https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/)
+3) Read alignment with [STAR](https://github.com/alexdobin/STAR).
+4) Estimation of transcript and gene expression with [Salmon](https://combine-lab.github.io/salmon/).
+5) Differential gene expression analysis with [DESeq2](http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html) (v1.49.1)
+6) Gene set enrichment analysis with [ClusterProfiler](https://bioconductor.org/packages/release/bioc/html/clusterProfiler.html) (v4.17.0)
+
+The steps from 1 to 4 have been performed using [nf-core/rnaseq](https://nf-co.re/rnaseq) v3.14.0.
+This report includes analysis from step 5 and 6
+
+```{r libraries}
 source("src/__utils_rna_seq_functions.R")
 
 # LIBRARY
@@ -74,26 +80,15 @@ library(dplyr)
 library(WGCNA)
 library(gridExtra)
 library("git2r")
-library("org.Hs.eg.db")
 library(limma)
 library(tibble)
 library(CorLevelPlot)
 library(ReactomePA)
-
-# PARAMETERS
-min_sample = 2
-logfc=log2(2)
-qvalue=0.05
-org <- org.Hs.eg.db
-
-rdata_file=params$dds_file
-system("rm -r ./output/gse_results/")
-system("mkdir ./output/gse_results/")
 ```
 
 ## Samples Datatable
 
-Below we present the datatable containing all of the samples analyzed in this report.  
+Below we present the table containing all the samples analyzed in this report.  
 
 Each sample is described by:
 
@@ -101,9 +96,9 @@ Each sample is described by:
 
   - sample_description: a descriptive version of the sample name to improve clarity in the presentation of data
 
-  - batch: the batch relative to each sample
+  - batch: the experimental batch of each sample
 
-  - condition: the condition as defined in the previous step of RNA seq analysis
+  - condition: the treatment condition (e.g. control, knockdown, treated, etc...)
 
   - condition_description: a descriptive version of the condition to improve clarity in the presentation of data
 
@@ -148,7 +143,7 @@ if (nrow(technical_controls) == 0 && batch_effect) {
 
 # Testo base
 batch_text <- paste0(
-  "#### Batch Effect Correction\n\n",
+  "### Batch Effect Correction\n\n",
   "Differential expression analysis is performed using a custom function, which accounts for batch effect. ",
   "A batch effect occurs when in an experiment non-biological factors, like laboratory conditions or instruments used, cause changes in the data produced by the experiment.")
 cat(batch_text)
@@ -199,13 +194,10 @@ for (grp in levels(sample_info$sample_group)) {
 }
 ```
 
-## Sample groups definition
 
-Below are the comparison groups used in this analysis.
+## Comparisons definition
 
-Each group consists of two subsets of samples: one experimental and one control.
-
-Differential gene expression analysis is performed by comparing the experimental samples against the control samples within the same group.
+The comparisons included in the report are listed below. Each comparison group includes two subsets of samples: an 'treatment' group and a control group. Differential gene expression analysis is conducted by comparing the 'treatment' samples to the control samples within each group.
 
 ```{r sample_grouping_text, results="asis", echo=FALSE}
 text_deseq_groups <- ""
@@ -280,17 +272,23 @@ design_formula <- as.formula(
 )
 ```
 
-## All-samples PCA Analysis
+## PCA Analysis
 
-Below we present the PCA analysis conducted on the entire sample dataset.
+For the PCA (principal component analysis) and correlation analyses, gene expression data were normalized using the variance stabilizing transformation (VST) method implemented in DESeq2.
 
-Principal Component Analysis (PCA) was performed to explore the global variance in gene expression profiles across all samples. 
+Below, we present the PPCA performed on the complete set of samples. PCA was used to explore global variance in gene expression profiles across all samples.
 
-The main goal of this analysis is to assess whether samples cluster according to their experimental conditions, indicating biologically meaningful differences. 
+The primary objectives of this analysis are to:
 
-PCA also helps to identify potential outliers and to detect the presence of batch effects or other sources of unwanted variation. 
+- Assess sample quality
 
-By reducing the high-dimensional gene expression data into a few principal components, PCA provides a visual summary of the overall structure of the dataset, which is useful for validating sample quality and guiding downstream analysis decisions.
+- Determine whether samples cluster according to experimental conditions, suggesting biologically meaningful variation
+
+- Identify potential outliers
+
+- Detect batch effects or other sources of unwanted variation
+
+By reducing the high-dimensional gene expression data into a few principal components, PCA provides a visual summary of the dataset’s structure.
 
 ```{r PCA_all, results="asis"}
 
@@ -324,15 +322,13 @@ mypcaAnalysis(
 
 ```
 
-## Heatmap correlation plot
+__INTEPRETATION MISSING__
 
-A sample-to-sample Spearman correlation heatmap provides a global view of the similarity between expression profiles across all samples. 
-By using the Spearman correlation coefficient, which measures the rank-based association between samples, this analysis is robust to outliers and non-linear relationships. 
+## Correlation analysis
 
-The heatmap is useful for assessing whether biological replicates cluster together and whether samples group according to experimental conditions. 
-
-It also helps to identify potential outliers, mislabeled samples, or unwanted sources of variability. 
-Below a short description on how to interpret the data.
+The Spearman correlation heatmap provides a global view of the similarity between gene expression profiles across all samples.
+We calculated the pairwise Spearman correlation coefficients between samples and visualized them in a heatmap.
+Rows and columns are hierarchically clustered based on these correlations to reveal patterns of similarity and potential groupings among samples.
 
 ```{r heatmap_correlation, results="asis"}
 # Calcola la matrice di correlazione tra campioni (Pearson)
@@ -366,10 +362,10 @@ annotation_colors <- list(
 )
 ```
 
-### **Spearman Correlation Heatmap: General Interpretation**
+### **Spearman Correlation: General Interpretation**
 
-#### 📈 **High Correlation Values** (e.g., > 0.98)  
-🔹 *Between replicates of the same condition:*  
+####  **High Correlation Values** (e.g., > 0.98)  
+*Between replicates of the same condition:*  
 
   - A very good quality signal  
 
@@ -377,14 +373,14 @@ annotation_colors <- list(
 
   - Suggests well-defined and reproducible biological conditions  
 
-🔹 *Between different conditions:*  
+*Between different conditions:*  
 
   - May indicate minor transcriptional differences  
 
   - Or poor separation due to contamination or mislabeling
 
-#### 📉 **Lower Correlation Values** (e.g., < 0.90–0.80)  
-🔹 *Between replicates of the same condition:* 
+#### **Lower Correlation Values** (e.g., < 0.95)  
+*Between replicates of the same condition:* 
 
   - May suggest technical or biological issues:  
 
@@ -399,7 +395,7 @@ This is particularly true when samples are obtained from different individuals, 
 
 Therefore, lower correlation values between replicates should not be interpreted in a standardized way, but rather evaluated in the specific biological and experimental context of the study.
 
-🔹 *Between different conditions:*  
+*Between different conditions:*  
 
   - Expected when conditions are biologically distinct  
 
@@ -411,6 +407,8 @@ Therefore, lower correlation values between replicates should not be interpreted
 
 
 ### Spearman Correlation Heatmap
+
+Below we present the heatmap associated spearman correlation. __INTERPRETATION__ 
 
 ```{r heatmap_correlation_plot, fig.width=8, fig.height=6}
 # Heatmap direttamente sulla matrice di correlazione
@@ -431,13 +429,9 @@ pheatmap(
 
 ## Library Sizes
 
-Below we present a barplot of the total read counts by sample.
+A bar plot displaying total read counts per sample is shown below
 
-Plotting the library sizes, defined as the total number of reads (or counts) per sample after preprocessing, is a fundamental quality control step in RNA-seq analysis. 
-This visualization helps to assess the consistency of sequencing depth across samples, which is important to ensure reliable comparisons between conditions. 
-
-Large differences in library sizes may indicate technical biases or issues during library preparation or sequencing, and can affect downstream normalization and differential expression analysis. 
-Identifying such imbalances early allows for appropriate normalization strategies and increases the robustness of the results.
+__INTERPRETATION__
 
 ```{r counts_dds, results="asis", fig.width=8}
 # Create a data frame for plotting
@@ -460,12 +454,7 @@ ggplot(lib_sizes, aes(x = sample_description, y = total_counts)) +
 
 Below we present a violin plot of the VST-normalized read counts by sample.
 
-A violin plot of VST-normalized counts provides an overview of the global distribution of gene expression values across samples after normalization. 
-Variance stabilizing transformation (VST) reduces the dependence of the variance on the mean, making the data more homoscedastic and suitable for visualization and clustering. 
-
-This plot allows for the detection of potential outliers, technical biases, or inconsistencies in distribution across samples, which could affect downstream analyses. 
-
-A consistent distribution of VST counts across samples suggests successful normalization and comparable expression profiles.
+A violin plot of VST-normalized counts provides an overview of the global distribution of gene expression values across samples after normalization.  This plot allows for the detection of potential outliers, technical biases, or inconsistencies in distribution across samples, which could affect downstream analyses. A consistent distribution of VST counts across samples suggests successful normalization and comparable expression profiles.
 
 ```{r violin_dds, results="asis", fig.width=8, fig.height=5}
 # Estrai i dati rlog e riformattali
@@ -489,5 +478,5 @@ ggplot(df_long, aes(x = sample, y = expression)) +
   )
 ```
 
-## Link to specific comparisons
+
 
