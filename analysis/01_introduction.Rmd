@@ -1,5 +1,5 @@
 ---
-title: "Introduction to the analysis of bulk RNAseq in NuMa Project"
+title: "Introduction to the analysis of bulk RNAseq in NuMA project"
 output:
   workflowr::wflow_html:
     toc: true
@@ -12,10 +12,11 @@ author: "Gianluca Alessio Mariani"
 params:
   sample_info_file: "./data/samples_info.tsv"
   dds_file: "./data/deseq2.dds.RData"
-  main_description: "./data/main_description.txt" 
   min_sample: 2
   logfc: log2(2)
   qvalue: 0.05
+
+  descriptions_file: "./data/descriptions_01.yaml" 
 ---
 
 ```{r}
@@ -30,19 +31,19 @@ knitr::opts_chunk$set(echo       = FALSE,
 ```
 
 ```{r parameters}
+library(yaml)
+
 min_sample = params$min_sample
 logfc=params$logfc
 qvalue=params$qvalue
 rdata_file=params$dds_file
+descriptions=yaml::read_yaml(params$descriptions_file)
 ```
 
 ## Introduction
 
-#### TEMPORARY DRAFT
-
 ```{r introduction, results="asis", echo=FALSE}
-text_lines <- readLines(params$main_description)
-cat(text_lines, sep = "\n")
+cat(descriptions$main, sep = "\n")
 ```
 
 
@@ -197,7 +198,9 @@ for (grp in levels(sample_info$sample_group)) {
 
 ## Comparisons definition
 
-The comparisons included in the report are listed below. Each comparison group includes two subsets of samples: an 'treatment' group and a control group. Differential gene expression analysis is conducted by comparing the 'treatment' samples to the control samples within each group.
+The comparisons included in the report are listed below. 
+Each comparison group includes two subsets of samples: a 'treatment' group and a control group. 
+Differential gene expression analysis is conducted by comparing the 'treatment' samples to the control samples within each group.
 
 ```{r sample_grouping_text, results="asis", echo=FALSE}
 text_deseq_groups <- ""
@@ -276,7 +279,7 @@ design_formula <- as.formula(
 
 For the PCA (principal component analysis) and correlation analyses, gene expression data were normalized using the variance stabilizing transformation (VST) method implemented in DESeq2.
 
-Below, we present the PPCA performed on the complete set of samples. PCA was used to explore global variance in gene expression profiles across all samples.
+Below, we present the PCA performed on the complete set of samples. PCA was used to explore global variance in gene expression profiles across all samples.
 
 The primary objectives of this analysis are to:
 
@@ -322,7 +325,11 @@ mypcaAnalysis(
 
 ```
 
-__INTEPRETATION MISSING__
+### Interpretation PCA Analysis
+
+```{r PCA_interpretation, results="asis", echo=FALSE}
+cat(descriptions$PCA, sep = "\n")
+```
 
 ## Correlation analysis
 
@@ -408,7 +415,7 @@ Therefore, lower correlation values between replicates should not be interpreted
 
 ### Spearman Correlation Heatmap
 
-Below we present the heatmap associated spearman correlation. __INTERPRETATION__ 
+Below we present the heatmap associated spearman correlation.
 
 ```{r heatmap_correlation_plot, fig.width=8, fig.height=6}
 # Heatmap direttamente sulla matrice di correlazione
@@ -427,11 +434,15 @@ pheatmap(
 )
 ```
 
+### Interpretation Spearman Correlation Heatmap
+
+```{r correlation_heatmap_interpretation, results="asis", echo=FALSE}
+cat(descriptions$correlation_heatmap, sep = "\n")
+```
+
 ## Library Sizes
 
 A bar plot displaying total read counts per sample is shown below
-
-__INTERPRETATION__
 
 ```{r counts_dds, results="asis", fig.width=8}
 # Create a data frame for plotting
@@ -448,6 +459,12 @@ ggplot(lib_sizes, aes(x = sample_description, y = total_counts)) +
        x = "Sample",
        y = "Total Counts") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Interpretation Library Sizes
+
+```{r library_sizes_interpretation, results="asis", echo=FALSE}
+cat(descriptions$library_sizes, sep = "\n")
 ```
 
 ## Violin plot of VST-normalized counts
@@ -478,5 +495,8 @@ ggplot(df_long, aes(x = sample, y = expression)) +
   )
 ```
 
+### Interpretation Violin plot of VST-normalized counts
 
-
+```{r violin_plot_interpretation, results="asis", echo=FALSE}
+cat(descriptions$violin_plot, sep = "\n")
+```
