@@ -13,9 +13,13 @@ editor_options:
   <strong>New label!</strong> The 'new' label denotes the most recently delivered report(s).
 </div>
 
-This  website contains RNAseq data analyses for the NuMa project.
+This  website contains RNAseq data analyses for the NuMA project.
 
 # Bulk RNAseq data analysis
 
 - [Background and whole experiment analysis](01_introduction.html)<span class="label btn-warning">new report</span>
+
+- [Synchronized NuMA- vs Synchronized NuMA+](02_numa_vs_nonuma_s.html)<span class="label btn-warning">new report</span>
+
+- [Non-synchronized NuMA- vs Non-synchronized NuMA+](03_numa_vs_nonuma_ns.html)<span class="label btn-warning">new report</span>
 

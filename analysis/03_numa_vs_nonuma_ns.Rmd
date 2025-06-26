@@ -1,5 +1,5 @@
 ---
-title: "NuMA vs absense of NuMA in syncronized cells"
+title: "NuMA vs absense of NuMA in non-syncronized cells"
 output:
   workflowr::wflow_html:
     toc: true
@@ -24,14 +24,14 @@ params:
   dds_file: "./data/deseq2.dds.RData" 
   exp:
     value:
-      exp_tag: "S_no_NuMA"
-      exp_name: "Synchronized NuMA-"
+      exp_tag: "NS_no_NuMA"
+      exp_name: "Non-synchronized NuMA-"
   contr:
     value:
-      contr_tag: "S_plus_NuMA"
-      contr_name: "Synchronized NuMA+"
+      contr_tag: "NS_plus_NuMA"
+      contr_name: "Non-synchronized NuMA+"
 
-  descriptions_file: "./data/descriptions_02.yaml" 
+  descriptions_file: "./data/descriptions_03.yaml" 
 ---
 
 ```{r}
