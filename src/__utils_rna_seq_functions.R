@@ -34,7 +34,7 @@ ensembl2symbol <- function(ensembl_ids, OrgDb) {
   return(named_vector)
 }
 
-mydeseq2 = function(counts, min_reads, sample_info, min_sample = 5, design_formula = ~ batch + condition, ...) {
+mydeseq2 = function(counts, min_reads, sample_info, min_sample = 5, design_formula = ~ batch + condition, test = "Wald", ...) {
   # Filtro geni poco espressi
   counts = counts[rowSums(counts) > min_reads & rowSums(counts > 1) > min_sample, ]
   
@@ -50,7 +50,7 @@ mydeseq2 = function(counts, min_reads, sample_info, min_sample = 5, design_formu
   )
   
   # DESeq2
-  diff <- DESeq(dds_current, ...)
+  diff <- DESeq(dds_current)
   
   res_all <- list()
   df_all_genes <- list()
@@ -60,7 +60,7 @@ mydeseq2 = function(counts, min_reads, sample_info, min_sample = 5, design_formu
   for (i in 1:(length(conds) - 1)) {
     for (j in (i + 1):length(conds)) {
       contrast <- c("condition", conds[i], conds[j])
-      res <- results(diff, contrast = contrast)
+      res <- results(diff, contrast = contrast, ...)
       res <- data.frame(res)
       res$comparison_n_vs_d <- paste0(conds[i], "_vs_", conds[j])
       res$gene <- rownames(res)
@@ -396,8 +396,51 @@ run_gsea_symbol = function(genelist, contrast_label, OrgDb, ont, toType = "SYMBO
   return(gse)
 }
 
+goenrichment = function(markers, down = FALSE, n_genes = 100, logfc_col = "avg_log2FC"){
+  if(down){
+    markers[[logfc_col]] = -markers[[logfc_col]]
+  }
+  
+  up = markers[markers[[logfc_col]] > 0, ]
+  up = up[order(up[[logfc_col]], decreasing = T), ]
+  
+  n_available <- nrow(up)
+  if(n_genes >= n_available){
+    marker_genes <- up$gene
+  } else {
+    marker_genes <- head(up$gene, n_genes)
+  }
+  
+  # Convert gene symbols to Entrez IDs
+  entrez_ids <- mapIds(
+    org.Hs.eg.db,
+    keys = marker_genes,
+    column = "ENTREZID",
+    keytype = "ENSEMBL",
+    multiVals = "first"
+  )
+  
+  entrez_ids <- na.omit(entrez_ids)
+  
+  # Perform GO enrichment analysis
+  go_enrichment <- enrichGO(
+    gene = entrez_ids,
+    OrgDb = org.Hs.eg.db,
+    keyType = "ENTREZID",
+    ont = "ALL",
+    pAdjustMethod = "BH",
+    pvalueCutoff = 0.05,
+    qvalueCutoff = 0.05,
+    readable = TRUE
+  )
+  
+  go_enrichment@result = go_enrichment@result[go_enrichment@result$p.adjust < go_enrichment@pvalueCutoff &
+                                                go_enrichment@result$qvalue < go_enrichment@qvalueCutoff, ]
+  return(go_enrichment)
+}
 
-goenrichment = function(markers, logfc_col = "avg_log2FC", down = FALSE, n_genes = 100){
+
+goenrichment_reactome = function(markers, logfc_col = "avg_log2FC", down = FALSE, n_genes = 100){
   if(down){
     markers[[logfc_col]] = -markers[[logfc_col]]
   }
