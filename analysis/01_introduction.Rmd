@@ -509,7 +509,7 @@ cat(descriptions$violin_plot, sep = "\n")
 
 The report with specific comparisons can be found here:
 
-- [Synchronized NuMA- vs Synchronized NuMA+](02_numa_vs_nonuma_s.html)<span class="label btn-warning">new report</span>
+- [Synchronized NuMA- vs Synchronized NuMA+](02_numa_vs_nonuma_s.html)
 
-- [Non-synchronized NuMA- vs Non-synchronized NuMA+](03_numa_vs_nonuma_ns.html)<span class="label btn-warning">new report</span
+- [Non-synchronized NuMA- vs Non-synchronized NuMA+](03_numa_vs_nonuma_ns.html)
 
