@@ -24,12 +24,12 @@ params:
   dds_file: "./data/deseq2.dds.RData" 
   exp:
     value:
-      exp_tag: "S_no_NuMA"
-      exp_name: "Synchronized NuMA-"
+      condition: "S_no_NuMA"
+      description: "Synchronized NuMA-"
   contr:
     value:
-      contr_tag: "S_plus_NuMA"
-      contr_name: "Synchronized NuMA+"
+      condition: "S_plus_NuMA"
+      description: "Synchronized NuMA+"
 
   descriptions_file: "./data/descriptions_02.yaml" 
 ---
@@ -56,7 +56,7 @@ descriptions=yaml::read_yaml(params$descriptions_file)
 ```
 
 ```{r dynamic_title, results="asis", echo=FALSE}
-cat(paste0("# ", params$exp$exp_name, " vs ", params$contr$contr_name, "\n"))
+cat(paste0("# ", params$exp$description, " vs ", params$contr$description, "\n"))
 ```
 
 The objective of this report is to investigate differential gene expression between the two conditions and to conduct gene ontology enrichment analysis to explore the biological functions involved.
@@ -118,28 +118,44 @@ sample_info[] <- lapply(sample_info, as.factor)
 deseq_groups <- list()
 
 # parametri passati da main.R
-expA <- params$exp$exp_tag
-contrA <- params$contr$contr_tag
-
-vs_descr <- paste(params$exp$exp_name, " vs ", params$contr$contr_name)
+expA <- params$exp$condition
+contrA <- params$contr$condition
+vs_descr <- paste(params$exp$description, " vs ", params$contr$description)
 
 for (grp in levels(sample_info$sample_group)) {
   group_samples <- subset(sample_info, sample_group == grp)
   
-  # Campioni sperimentali: sample_type == "e" **e** condition == expA
-  exp_samples <- rownames(subset(group_samples, sample_type == "e" & condition == expA))
+  # Separazione campioni
   
-  # Campioni controllo: sample_type == "c" o "tc" **e** condition == contrA
-  ctrl_samples <- rownames(subset(group_samples, sample_type %in% c("c", "tc") & condition == contrA))
-  
-  if (length(exp_samples) > 0 && length(ctrl_samples) > 0) {
-    deseq_groups[[as.character(grp)]] <- list(
-      group_id = grp,
-      experimental = exp_samples,
-      control = ctrl_samples
-    )
+  ctrl_samples <- subset(group_samples, sample_type %in% c("c", "tc", "control"))
+  exp_samples_full <- group_samples[!(group_samples$sample_type %in% ctrl_samples$sample_type), ]
+  comparison = 0
+  if (nrow(exp_samples_full) > 0 && nrow(ctrl_samples) > 0) {
+    for(treatment in unique(exp_samples_full$sample_type)){
+      exp_samples = exp_samples_full[exp_samples_full$sample_type == treatment, ]
+      # Prendi i nomi campioni
+      exp_sample_names <- rownames(exp_samples)
+      ctrl_sample_names <- rownames(ctrl_samples)
+      
+      # Prendi le condizioni (testo descrizione) uniche per experimental e control
+      exp_conditions <- unique(exp_samples$condition_description)
+      ctrl_conditions <- unique(ctrl_samples$condition_description)
+      
+      # Unisci le condizioni in una stringa separata da virgole (se più di una)
+      exp_conditions_text <- paste(exp_conditions, collapse = ", ")
+      ctrl_conditions_text <- paste(ctrl_conditions, collapse = ", ")
+      
+      deseq_groups[[paste0("group_", as.character(grp), "_set_", as.character(comparison))]] <- list(
+        group_id = grp,
+        experimental = exp_sample_names,
+        control = ctrl_sample_names,
+        exp_condition = exp_conditions_text,
+        ctrl_condition = ctrl_conditions_text
+      )
+      comparison = comparison + 1
+    }
   } else {
-    warning(paste("The group", grp, "does not have a valid control (exp + ctrl)"))
+    warning(paste("The group", grp, "does not have a valid comparison (exp + ctrl)"))
   }
 }
 
@@ -182,9 +198,9 @@ text_deseq_groups <- ""
 
 text_deseq_groups <- paste0(
   "Group considered: ", "\n\n",
-  "\t- **Experimental samples** (", params$exp$exp_name, ", e):\n",
+  "\t- **Experimental samples** (", params$exp$description, "):\n",
   paste0("\t\t", selected_group$experimental, collapse = "\n"), "\n\n",
-  "\t- **Control Samples** (", params$contr$contr_name, ", c/tc):\n",
+  "\t- **Control Samples** (", params$contr$description, "):\n",
   paste0("\t\t", selected_group$control, collapse = "\n"), "\n\n"
 )
 ```
@@ -266,10 +282,10 @@ coldata_A <- out_A[["coldata"]]
 cat("---
 
 The RNAseq data for this analysis:\n
-  - aim to investigate what is the difference in gene expression between", params$exp$exp_name, "and", params$contr$contr_name, "\n
+  - aim to investigate what is the difference in gene expression between", params$exp$description, "and", params$contr$description, "\n
 
 The sample population include:\n
-  - ", params$num_samples, " samples,", tot_conditions, " conditions, ", params$exp$exp_name, "and", params$contr$contr_name, " in ", params$num_replicates, " replicates each.\n", "
+  - ", params$num_samples, " samples,", tot_conditions, " conditions, ", params$exp$description, "and", params$contr$description, " in ", params$num_replicates, " replicates each.\n", "
 
 #### Background Correction\n")
 if (!is.null(params$technical_control)) {
@@ -339,7 +355,7 @@ The columns in the table are:
 
   - baseMean: The average normalized count of a gene across all samples, reflecting its overall expression level in the dataset.
 
-  - log2FoldChange: The estimated log2-transformed fold change in expression between two conditions (e.g., experimental vs control). Positive values indicate upregulation, negative values indicate downregulation.
+  - log2FoldChange: The estimated log2-transformed fold change in expression between two conditions (e.g., experimental vs control). Positive values indicate upregulation, negative values indicate downregulation with respect to control.
 
   - lfcSE: The standard error associated with the log2 fold change estimate, indicating the variability or uncertainty of the fold change measurement.
 
@@ -507,22 +523,22 @@ genelist_df_A <- data.frame(
 ```{r over_representation_analysis_up, fig.width=10, results="asis"}
 go_enrichment_A_up <- goenrichment(genelist_df_A, logfc_col = "log2FC", down = FALSE, n_genes = 100)
 if (nrow(go_enrichment_A_up@result) > 0) {
-  cat(paste0("### ReactomePA - UP", "\n\n", vs_descr))
+  cat(paste0("### ORA - UP", "\n\n", vs_descr))
   print(dotplot(go_enrichment_A_up, label_format = 50) + 
-        ggtitle("Reactome Pathway Enrichment (UPregulated genes)"))
+        ggtitle("ORA (UPregulated genes)"))
 } else {
-  cat(paste0("### ReactomePA - UP", "\n\n", vs_descr, ": ⚠️ No enrichment found\n\n"))
+  cat(paste0("### ORA - UP", "\n\n", vs_descr, ": ⚠️ No enrichment found\n\n"))
 }
 ```
 
 ```{r over_representation_analysis_down, fig.width=10, results="asis"}
 go_enrichment_A_down <- goenrichment(genelist_df_A, logfc_col = "log2FC", down = TRUE, n_genes = 100)
 if (nrow(go_enrichment_A_down@result) > 0) {
-  cat(paste0("### ReactomePA - DOWN", "\n\n", vs_descr))
+  cat(paste0("### ORA - DOWN", "\n\n", vs_descr))
   print(dotplot(go_enrichment_A_down, label_format = 50) + 
-        ggtitle("Reactome Pathway Enrichment (DOWNregulated genes)"))
+        ggtitle("ORA (DOWNregulated genes)"))
 } else {
-  cat(paste0("### ReactomePA - DOWN", "\n\n", vs_descr, ": ⚠️ No enrichment found\n\n"))
+  cat(paste0("### ORA - DOWN", "\n\n", vs_descr, ": ⚠️ No enrichment found\n\n"))
 }
 ```
 

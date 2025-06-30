@@ -15,7 +15,6 @@ params:
   min_sample: 2
   logfc: log2(2)
   qvalue: 0.05
-
   descriptions_file: "./data/descriptions_01.yaml" 
 ---
 
@@ -105,11 +104,11 @@ Each sample is described by:
 
 ```{r load_samples, results="asis"}
 
-# Leggi i dati
+# Get information
 sample_info <- read.table(params$sample_info_file, header = TRUE, sep = "\t")
 rownames(sample_info) <- sample_info$sample
 
-# Converti tutte le colonne a fattori
+# Convert to factors
 sample_info[] <- lapply(sample_info, as.factor)
 
 clean_sample_info <- sample_info[, !(colnames(sample_info) %in% c("sample_type", "sample_group"))]
@@ -127,14 +126,12 @@ datatable(
 ```
 
 ```{r additional_data, results="asis"}
-
-# 1. Rileva batch effect
+# 1. Get number of batch
 n_batches <- length(unique(sample_info$batch))
 batch_effect <- n_batches > 1
 
-# 2. Identifica i campioni tecnici di controllo (tc)
-# Si assume che 'sample_type' contenga livelli come "tc", "t", "c", "e"
-technical_controls <- subset(sample_info, sample_type %in% c("tc", "t"))
+# identify technical controls
+technical_controls <- subset(sample_info, sample_type %in% c("technical_control"))
 ```
 
 ```{r batch_effect_text, results="asis", echo=FALSE}
@@ -142,14 +139,12 @@ if (nrow(technical_controls) == 0 && batch_effect) {
   warning("⚠️ Batch effect detected but no technical control specified (sample_type == 'tc' or 't')")
 }
 
-# Testo base
 batch_text <- paste0(
   "### Batch Effect Correction\n\n",
   "Differential expression analysis is performed using a custom function, which accounts for batch effect. ",
   "A batch effect occurs when in an experiment non-biological factors, like laboratory conditions or instruments used, cause changes in the data produced by the experiment.")
 cat(batch_text)
 
-# Aggiungi frase in base a batch_effect
 if (batch_effect) {
   cat("<br><br>In this analysis the samples have been collected in", n_batches, "different batches, so batch correction will be applied.")
 } else {
@@ -158,37 +153,39 @@ if (batch_effect) {
 ```
 
 ```{r sample_grouping, results="asis"}
-# 3. Crea lista dei gruppi sperimentali per DGE
-# Per ogni sample_group, identifica exp vs control
 deseq_groups <- list()
 
 for (grp in levels(sample_info$sample_group)) {
   group_samples <- subset(sample_info, sample_group == grp)
-  
-  # Separazione campioni
-  exp_samples <- subset(group_samples, sample_type == "e")
-  ctrl_samples <- subset(group_samples, sample_type %in% c("c", "tc"))
-  
-  if (nrow(exp_samples) > 0 && nrow(ctrl_samples) > 0) {
-    # Prendi i nomi campioni
-    exp_sample_names <- rownames(exp_samples)
-    ctrl_sample_names <- rownames(ctrl_samples)
+
+  # get control and treatment samples
+  ctrl_samples <- subset(group_samples, sample_type %in% c("c", "tc", "control", "wt", "wild-type", "wildtype"))
+  exp_samples_full <- group_samples[!(group_samples$sample_type %in% ctrl_samples$sample_type), ]
+  comparison = 0
+  if (nrow(exp_samples_full) > 0 && nrow(ctrl_samples) > 0) {
     
-    # Prendi le condizioni (testo descrizione) uniche per experimental e control
-    exp_conditions <- unique(exp_samples$condition_description)
-    ctrl_conditions <- unique(ctrl_samples$condition_description)
-    
-    # Unisci le condizioni in una stringa separata da virgole (se più di una)
-    exp_conditions_text <- paste(exp_conditions, collapse = ", ")
-    ctrl_conditions_text <- paste(ctrl_conditions, collapse = ", ")
-    
-    deseq_groups[[as.character(grp)]] <- list(
-      group_id = grp,
-      experimental = exp_sample_names,
-      control = ctrl_sample_names,
-      exp_condition = exp_conditions_text,
-      ctrl_condition = ctrl_conditions_text
-    )
+    # given one control, there might be multiple associated treatments
+    for(treatment in as.vector(unique(exp_samples_full$sample_type))){
+      exp_samples = exp_samples_full[exp_samples_full$sample_type == treatment, ]
+      
+      exp_sample_names <- rownames(exp_samples)
+      ctrl_sample_names <- rownames(ctrl_samples)
+
+      exp_conditions <- unique(exp_samples$condition_description)
+      ctrl_conditions <- unique(ctrl_samples$condition_description)
+
+      exp_conditions_text <- paste(exp_conditions, collapse = ", ")
+      ctrl_conditions_text <- paste(ctrl_conditions, collapse = ", ")
+
+      deseq_groups[[paste0("group_", as.character(grp), "_set_", as.character(comparison))]] <- list(
+        group_id = grp,
+        experimental = exp_sample_names,
+        control = ctrl_sample_names,
+        exp_condition = exp_conditions_text,
+        ctrl_condition = ctrl_conditions_text
+      )
+      comparison = comparison + 1
+    }
   } else {
     warning(paste("The group", grp, "does not have a valid comparison (exp + ctrl)"))
   }
@@ -210,7 +207,7 @@ if (length(deseq_groups) > 0) {
   for (grp_name in names(deseq_groups)) {
     grp <- deseq_groups[[grp_name]]
     
-    # Costruisci la descrizione confronto
+    # Get comparison
     comparison_text <- paste0("(", grp$exp_condition, " vs ", grp$ctrl_condition, ")")
     
     text_deseq_groups <- paste0(text_deseq_groups,
@@ -238,18 +235,16 @@ cat(text_html)
 # Load DESeq2 object containing raw count data
 load(rdata_file)
 
-# Pulisci i nomi campioni in sample_info
+# Clean anmes
 sample_info$sample <- make.names(sample_info$sample)
 rownames(sample_info) <- sample_info$sample
 
-# Trova i campioni comuni
+# Get common samples
 common_samples <- intersect(colnames(dds), sample_info$sample)
-
-# Filtra dds e sample_info per tenere solo i campioni comuni
 dds <- dds[, common_samples]
 sample_info <- sample_info[common_samples, ]
 
-# Controlla che i nomi siano allineati
+# sanity check
 stopifnot(all(colnames(dds) == rownames(sample_info)))
 
 colData(dds)$sample <- sample_info$sample
@@ -257,19 +252,29 @@ colData(dds)$sample_description <- sample_info$sample_description
 colData(dds)$condition <- sample_info$condition
 colData(dds)$condition_description <- sample_info$condition_description
 
-# Supponiamo di avere il dataframe sample_info con queste colonne
-design_vars <- c("batch", "condition")  # variabili candidate per il design
-# Controlla quali variabili sono costanti
+# possible design variables
+design_vars <- c("batch", "condition", "time")  
+
+# Remove constant
 constant_vars <- check_constant_vars(sample_info, design_vars)
 if (length(constant_vars) > 0) {
-  message("Variabili costanti trovate e rimosse dal design: ", paste(constant_vars, collapse = ", "))
+  message("Constant variable removed: ", paste(constant_vars, collapse = ", "))
 }
-# Variabili valide da usare nel design (non costanti)
 valid_vars <- setdiff(design_vars, constant_vars)
 if (length(valid_vars) == 0) {
-  stop("Nessuna variabile valida per il design. Controlla i dati.")
+  stop("No variable for design. condition column is missing or it contains a single condition.")
 }
-# Costruisci la formula del design in modo dinamico
+
+# Remove missing design variables
+missing_vars = valid_vars[!(valid_vars %in% colnames(sample_info))]
+if (length(missing_vars) > 0) {
+  message("IMPORTANT!!!! missing variable removed: ", paste(missing_vars, collapse = ", "))
+}
+valid_vars <- setdiff(valid_vars, missing_vars)
+if (length(valid_vars) == 0) {
+  stop("No variable for design. condition column is missing or it contains a single condition.")
+}
+
 design_formula <- as.formula(
   paste("~", paste(valid_vars, collapse = " + "))
 )
@@ -313,8 +318,8 @@ colData(rld)$sample_description <- sample_info$sample_description
 colData(rld)$condition <- sample_info$condition
 colData(rld)$condition_description <- sample_info$condition_description
 
-sample_names <- colnames(rld)  # nomi attuali delle colonne
-alt_labels <- colData(rld)$sample_description  # nomi alternativi (sample_description)
+sample_names <- colnames(rld)  
+alt_labels <- colData(rld)$sample_description 
 name_map <- setNames(as.character(alt_labels), sample_names)
 
 mypcaAnalysis(
@@ -325,7 +330,7 @@ mypcaAnalysis(
 
 ```
 
-### Interpretation PCA Analysis
+__Interpretation PCA Analysis__
 
 ```{r PCA_interpretation, results="asis", echo=FALSE}
 cat(descriptions$PCA, sep = "\n")
@@ -338,32 +343,31 @@ We calculated the pairwise Spearman correlation coefficients between samples and
 Rows and columns are hierarchically clustered based on these correlations to reveal patterns of similarity and potential groupings among samples.
 
 ```{r heatmap_correlation, results="asis"}
-# Calcola la matrice di correlazione tra campioni (Pearson)
+
+# Corellation between samples
 cor_matrix <- cor(assay(rld), method = "spearman")
 colnames(cor_matrix) <- name_map[colnames(cor_matrix)]
 rownames(cor_matrix) <- name_map[rownames(cor_matrix)]
 
-# Matrice delle distanze per il clustering (1 - correlazione)
+# Distance matrix defined as 1-correlation
 clustering_dist <- as.dist(1 - cor_matrix)
 
-# Annota i gruppi
+# Annotate groups
 annotation_df <- as.data.frame(colData(dds)[, "condition_description", drop = FALSE])
 colnames(annotation_df) <- "Condition"
 rownames(annotation_df) <- name_map[rownames(annotation_df)]
 
-# Estrai le condizioni uniche da colData
+# Unique conditions
 conditions <- unique(as.character(colData(dds)$condition_description))
 n_conditions <- length(conditions)
 
-# Palette automatica (Set2 supporta fino a 8 colori distinti e leggibili)
+# Color palette
 palette_colors <- brewer.pal(min(n_conditions, 8), "Set2")
-
-# Se ci sono più condizioni della palette, crea una palette più grande
 if (n_conditions > length(palette_colors)) {
   palette_colors <- colorRampPalette(brewer.pal(8, "Set2"))(n_conditions)
 }
 
-# Mappa condizione -> colore
+# color mapping
 annotation_colors <- list(
   Condition = setNames(palette_colors, conditions)
 )
@@ -418,7 +422,7 @@ Therefore, lower correlation values between replicates should not be interpreted
 Below we present the heatmap associated spearman correlation.
 
 ```{r heatmap_correlation_plot, fig.width=8, fig.height=6}
-# Heatmap direttamente sulla matrice di correlazione
+
 pheatmap(
   cor_matrix,
   clustering_distance_rows = clustering_dist,
@@ -445,7 +449,7 @@ cat(descriptions$correlation_heatmap, sep = "\n")
 A bar plot displaying total read counts per sample is shown below
 
 ```{r counts_dds, results="asis", fig.width=8}
-# Create a data frame for plotting
+
 lib_sizes <- data.frame(
   sample_description = colData(dds)$sample_description,
   total_counts = colSums(counts(dds))
@@ -474,13 +478,13 @@ Below we present a violin plot of the VST-normalized read counts by sample.
 A violin plot of VST-normalized counts provides an overview of the global distribution of gene expression values across samples after normalization.  This plot allows for the detection of potential outliers, technical biases, or inconsistencies in distribution across samples, which could affect downstream analyses. A consistent distribution of VST counts across samples suggests successful normalization and comparable expression profiles.
 
 ```{r violin_dds, results="asis", fig.width=8, fig.height=5}
-# Estrai i dati rlog e riformattali
+
 rld_matrix <- assay(rld)
 df_long <- reshape2::melt(rld_matrix, varnames = c("gene", "sample"), value.name = "expression")
 
 df_long$sample <- name_map[as.character(df_long$sample)]
 
-# Crea violin plot
+
 ggplot(df_long, aes(x = sample, y = expression)) +
   geom_violin(trim = FALSE, fill = "#8da0cb", color = "black") +
   geom_boxplot(width = 0.1, outlier.size = 0.5) +  # opzionale, overlay del boxplot
@@ -500,3 +504,12 @@ ggplot(df_long, aes(x = sample, y = expression)) +
 ```{r violin_plot_interpretation, results="asis", echo=FALSE}
 cat(descriptions$violin_plot, sep = "\n")
 ```
+
+# Differential expression analysis
+
+The report with specific comparisons can be found here:
+
+- [Synchronized NuMA- vs Synchronized NuMA+](02_numa_vs_nonuma_s.html)<span class="label btn-warning">new report</span>
+
+- [Non-synchronized NuMA- vs Non-synchronized NuMA+](03_numa_vs_nonuma_ns.html)<span class="label btn-warning">new report</span
+
