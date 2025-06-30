@@ -275,69 +275,95 @@ my_genetable = function(res, title_1vs2, qvalue, logfc, ...){
   )
   title_1vs2_underscore <- gsub(" ", "_", title_1vs2)
   # Esportazione CSV
-  write.table(deg, file = paste("./output/gse_results/DEG_", title_1vs2_underscore, ".csv"), sep = ",", row.names = FALSE, quote = FALSE)
+  # write.table(deg, file = paste("./output/gse_results/DEG_", title_1vs2_underscore, ".csv"), sep = ",", row.names = FALSE, quote = FALSE)
   return(list(res_dt = res_dt, deg_dt = deg_dt, res = res, deg = deg))
 }
 
 
 
-my_heatmaps = function(deg, rld, title_1vs2) {
-  if (!requireNamespace("ComplexHeatmap", quietly = TRUE)) stop("Install ComplexHeatmap package.")
+my_heatmaps <- function(deg, rld, title_1vs2) {
+
   gene_symbols <- setNames(deg$symbol, deg$gene)
 
-  # Seleziona i top 20 geni significativi ordinati per padj
+  ## ---- Top 20 genes ----
   top20_genes <- deg %>%
     as.data.frame() %>%
     arrange(padj) %>%
     head(20) %>%
-    pull(gene)
+    dplyr::pull(gene)
 
-  expr_top20 <- assay(rld)[top20_genes, ]
+  # Assicuriamoci che i geni esistano nella matrice rld
+  top20_genes <- intersect(top20_genes, rownames(assay(rld)))
+  if (length(top20_genes) == 0) {
+    warning("No top 20 genes found in the assay matrix.")
+    h_20 <- NULL
+  } else {
+    expr_top20 <- assay(rld)[top20_genes, , drop = FALSE]
+    rownames(expr_top20) <- coalesce(gene_symbols[rownames(expr_top20)], rownames(expr_top20))
+    expr_top20_scaled <- t(scale(t(expr_top20)))
 
-  new_rownames <- coalesce(gene_symbols[rownames(expr_top20)], rownames(expr_top20))
-  rownames(expr_top20) <- new_rownames
+    # Rimuovi righe con valori non finiti
+    expr_top20_scaled <- expr_top20_scaled[apply(expr_top20_scaled, 1, function(x) all(is.finite(x))), , drop = FALSE]
 
-  expr_top20_scaled <- t(scale(t(expr_top20)))
+    if (nrow(expr_top20_scaled) == 0) {
+      warning("Top 20 genes expression matrix is empty after scaling.")
+      h_20 <- NULL
+    } else {
+      h_20 <- pheatmap(
+        expr_top20_scaled,
+        cluster_rows = FALSE,
+        cluster_cols = FALSE,
+        show_rownames = TRUE,
+        show_colnames = TRUE,
+        color = colorRampPalette(c("blue", "white", "red"))(50),
+        main = paste("Top 20 DE Genes:", title_1vs2),
+        cellwidth = 12,
+        cellheight = 12,
+        legend = TRUE,
+        legend_breaks = c(-2, 0, 2),
+        legend_labels = c("-2 (Z-score)", "0", "2 (Z-score)")
+      )
+    }
+  }
 
-  h_20 <- pheatmap(
-    expr_top20_scaled,
-    cluster_rows = FALSE,
-    cluster_cols = FALSE,
-    show_rownames = TRUE,
-    show_colnames = TRUE,
-    color = colorRampPalette(c("blue", "white", "red"))(50),
-    main = paste("Top 20 DE Genes:", title_1vs2),
-    cellwidth = 12,
-    cellheight = 12,
-    legend = TRUE,
-    legend_breaks = c(-2, 0, 2),
-    legend_labels = c("-2 (Z-score)", "0", "2 (Z-score)")
-  )
+  ## ---- All DE genes ----
+  all_de_genes <- deg %>% dplyr::pull(gene)
+  all_de_genes <- intersect(all_de_genes, rownames(assay(rld)))
 
-  # Tutti i DE genes
-  all_de_genes <- deg %>% pull(gene)
-  expr_de <- assay(rld)[all_de_genes, ]
+  if (length(all_de_genes) == 0) {
+    warning("No DE genes found in the assay matrix.")
+    h_all <- NULL
+  } else {
+    expr_de <- assay(rld)[all_de_genes, , drop = FALSE]
+    rownames(expr_de) <- coalesce(gene_symbols[rownames(expr_de)], rownames(expr_de))
+    expr_de_scaled <- t(scale(t(expr_de)))
 
-  new_rownames <- coalesce(gene_symbols[rownames(expr_de)], rownames(expr_de))
-  rownames(expr_de) <- new_rownames
+    # Rimuovi righe con valori non finiti
+    expr_de_scaled <- expr_de_scaled[apply(expr_de_scaled, 1, function(x) all(is.finite(x))), , drop = FALSE]
 
-  expr_de_scaled <- t(scale(t(expr_de)))
+    if (nrow(expr_de_scaled) == 0) {
+      warning("All DE genes expression matrix is empty after scaling.")
+      h_all <- NULL
+    } else {
+      h_all <- pheatmap(
+        expr_de_scaled,
+        cluster_rows = TRUE,
+        cluster_cols = TRUE,
+        show_rownames = FALSE,
+        show_colnames = TRUE,
+        color = colorRampPalette(c("blue", "white", "red"))(50),
+        main = paste("All DE Genes:", title_1vs2),
+        cellwidth = 15,
+        legend = TRUE,
+        legend_breaks = c(-2, 0, 2),
+        legend_labels = c("-2 (Z-score)", "0", "2 (Z-score)")
+      )
+    }
+  }
 
-  h_all <- pheatmap(
-    expr_de_scaled,
-    cluster_rows = TRUE,
-    cluster_cols = TRUE,
-    show_rownames = FALSE,
-    show_colnames = TRUE,
-    color = colorRampPalette(c("blue", "white", "red"))(50),
-    main = paste("All DE Genes:", title_1vs2),
-    cellwidth = 15,
-    legend = TRUE,
-    legend_breaks = c(-2, 0, 2),
-    legend_labels = c("-2 (Z-score)", "0", "2 (Z-score)")
-  )
   return(list(h_20 = h_20, h_all = h_all))
 }
+
 
 
 

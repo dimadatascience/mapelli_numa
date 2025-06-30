@@ -1,5 +1,5 @@
 ---
-title: "Single Comparison Report"
+title: "Introduction to the analysis of bulk RNAseq in {project_name}"
 output:
   workflowr::wflow_html:
     toc: true
@@ -10,22 +10,28 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 author: "Gianluca Alessio Mariani"
 
 params:
+  min_sample: 2
+  design_vars: 
+    - "batch" 
+    - "condition"
   num_samples: 6
   num_replicates: 3
   technical_control: null
   batch_effect: null
-  logfc: log2(2)
+  logfc: 1
   qvalue: 0.05
   sample_info_file: "./data/samples_info.tsv"
-  dds_file: "./data/deseq2.dds.RData"
+  dds_file: "./data/deseq2.dds.RData" 
   exp:
     value:
-      exp_tag: "NS_no_NuMA"
-      exp_name: "Non-synchronized NuMa-"
+      exp_tag: "default_exp_condition_tag"
+      exp_name: "default_exp_name"
   contr:
     value:
-      contr_tag: "NS_plus_NuMA"
-      contr_name: "Non-synchronized NuMa+"
+      contr_tag: "default_contr_condition_tag"
+      contr_name: "default_contr_name"
+
+  descriptions_file: "./data/descriptions_moduleX.yaml" 
 ---
 
 ```{r}
@@ -40,10 +46,13 @@ knitr::opts_chunk$set(echo       = FALSE,
 ```
 
 ```{r parameters}
+library(yaml)
+
 min_sample = params$min_sample
 logfc=params$logfc
 qvalue=params$qvalue
 rdata_file=params$dds_file
+descriptions=yaml::read_yaml(params$descriptions_file)
 ```
 
 ```{r dynamic_title, results="asis", echo=FALSE}
@@ -53,7 +62,7 @@ cat(paste0("# ", params$exp$exp_name, " vs ", params$contr$contr_name, "\n"))
 The objective of this report is to investigate differential gene expression between the two conditions and to conduct gene ontology enrichment analysis to explore the biological functions involved.
 
 ```{r libraries}
-source("src/__utils_rna_seq_functions.R")
+source("./src/__utils_rna_seq_functions.R")
 
 library("DESeq2")
 library(rtracklayer)
@@ -128,7 +137,7 @@ for (grp in levels(sample_info$sample_group)) {
       control = ctrl_samples
     )
   } else {
-    warning(paste("Il gruppo", grp, "non ha un confronto valido (exp + ctrl)"))
+    warning(paste("The group", grp, "does not have a valid control (exp + ctrl)"))
   }
 }
 
@@ -206,16 +215,16 @@ rownames(colData(dds)) <- sample_info$sample
 dds$sample <- sample_info$sample
 
 # Supponiamo di avere il dataframe sample_info con queste colonne
-design_vars <- c("batch", "condition")  # variabili candidate per il design
+design_vars <- c(params$design_vars)  # variabili candidate per il design
 # Controlla quali variabili sono costanti
 constant_vars <- check_constant_vars(sample_info, design_vars)
 if (length(constant_vars) > 0) {
-  message("Variabili costanti trovate e rimosse dal design: ", paste(constant_vars, collapse = ", "))
+  message("Found constant variables: ", paste(constant_vars, collapse = ", "), ", removed from the design.")
 }
 # Variabili valide da usare nel design (non costanti)
 valid_vars <- setdiff(design_vars, constant_vars)
 if (length(valid_vars) == 0) {
-  stop("Nessuna variabile valida per il design. Controlla i dati.")
+  stop("No suitable variable for the design. Check the data.")
 }
 # Costruisci la formula del design in modo dinamico
 design_formula <- as.formula(
@@ -286,6 +295,9 @@ mypcaAnalysis(
 )
 ```
 
+```{r PCA_interpretation, results="asis", echo=FALSE}
+cat(descriptions$PCA_interpretation, sep = "\n")
+```
 
 ## MA plot and volcano plot
 
@@ -307,7 +319,6 @@ plots_A$ma
 
 The Volcano plot is a graphical method to visualize differential expression results by combining statistical significance and magnitude of change for each gene. 
 It plots the log2 fold change on the x-axis against the negative log10 of the p-value (or adjusted p-value) on the y-axis. 
-
 
 ```{r Volcano_plot_A, results="asis"}
 plots_A$volcano
@@ -419,7 +430,6 @@ Further analysis is done through gene set enrichment analysis, which does not ex
 GSEA is performed separately on each subontology: biological processes (BP), cellular components (CC) and molecular functions (MF).
 The dot plot below shows all the enriched GO terms. The size of each dot correlates with the count of differentially expressed genes associated with each GO term. Furthermore, the color of each dot reflects the significance of the enrichment of the respective GO term, highlighting its relative importance.
 
-
 ```{r gene_set_enrichment_analysis_A}
 genelist_A <- res_A$log2FoldChange
 names(genelist_A) <- res_A$gene
@@ -508,13 +518,13 @@ if (nrow(go_enrichment_A_down@result) > 0) {
 }
 ```
 
-## WGCNA analysis
+```{r WGCNA_analysis, results="asis"}
+# cat(paste0("## WGCNA analysis
 
-The idea behind WGCNA analysis is to identify genes with similar expression patterns, so genes that are co-expressed, that can be functionally associated.
-Starting from gene expression data, like counts matrix from RNA-seq, a weighted correlation matrix is constructed and then this allow to identify modules, clusters of genes with similar expression patterns. Furthermore, these modules can be investigated to identify driver genes or to find correlation with phenotype.
-WGCNA analysis is designed to be unsupervised method, so genes do not have to be filtered based on differential expression analysis. Genes with low counts should be removed from counts matrix; counts should be normalized and batch effect removed before running analysis.
+# The idea behind WGCNA analysis is to identify genes with similar expression patterns, so genes that are co-expressed, that can be functionally associated.
+# Starting from gene expression data, like counts matrix from RNA-seq, a weighted correlation matrix is constructed and then this allow to identify modules, clusters of genes with similar expression patterns. Furthermore, these modules can be investigated to identify driver genes or to find correlation with phenotype.
+# WGCNA analysis is designed to be unsupervised method, so genes do not have to be filtered based on differential expression analysis. Genes with low counts should be removed from counts matrix; counts should be normalized and batch effect removed before running analysis."))
 
-```{r WGCNA_analysis}
 # wgcna <- my_WGCNA_analysis(
 #   sample_info = sample_info, 
 #   dds = dds,
