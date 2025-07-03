@@ -196,7 +196,7 @@ if (length(deseq_groups) > 0) {
     text_deseq_groups <- paste0(text_deseq_groups,
       "\n",
       "➤ Group: ", grp_name, ", ", comparison_text, "\n",
-      "\n\t- **Experimental samples** (", grp$exp_condition, ", e):\n",
+      "\n\t- **'Treated' samples** (", grp$exp_condition, ", e):\n",
       paste0("\t\t", grp$experimental, collapse = "\n"), "\n",
       "\n\t- **Control Samples** (", grp$ctrl_condition, ", c/tc):\n",
       paste0("\t\t", grp$control, collapse = "\n"), "\n\n"
@@ -251,7 +251,7 @@ if (length(valid_vars) == 0) {
 # Remove missing design variables
 missing_vars = valid_vars[!(valid_vars %in% colnames(sample_info))]
 if (length(missing_vars) > 0) {
-  message("IMPORTANT!!!! missing variable removed: ", paste(missing_vars, collapse = ", "))
+  message("IMPORTANT!!!! Passed but missing variable removed: ", paste(missing_vars, collapse = ", "))
 }
 valid_vars <- setdiff(valid_vars, missing_vars)
 if (length(valid_vars) == 0) {

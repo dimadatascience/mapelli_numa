@@ -14,6 +14,7 @@ params:
     - "condition"
   num_samples: 6
   num_replicates: 3
+  top_n_genes_used4ora: 1000
   batch_effect: null
   logfc: 1
   qvalue: 0.05
@@ -45,6 +46,7 @@ knitr::opts_chunk$set(echo       = FALSE,
 logfc=params$logfc
 qvalue=params$qvalue
 rdata_file=params$dds_file
+n_genes = params$top_n_genes_used4ora
 ```
 
 ```{r dynamic_title, results="asis", echo=FALSE}
@@ -529,8 +531,8 @@ genelist_df_A <- data.frame(
   gene = deg_A$gene,
   log2FC = deg_A$log2FoldChange
 )
-go_enrichment_A_up <- goenrichment(genelist_df_A, logfc_col = "log2FC", down = FALSE, n_genes = 100, pvalueCutoff = pvalue_cutoff_ORA, qvalueCutoff = qvalue)
-go_enrichment_A_down <- goenrichment(genelist_df_A, logfc_col = "log2FC", down = TRUE, n_genes = 100, pvalueCutoff = pvalue_cutoff_ORA, qvalueCutoff = qvalue)
+go_enrichment_A_up <- goenrichment(genelist_df_A, logfc_col = "log2FC", down = FALSE, n_genes = n_genes, pvalueCutoff = pvalue_cutoff_ORA, qvalueCutoff = qvalue)
+go_enrichment_A_down <- goenrichment(genelist_df_A, logfc_col = "log2FC", down = TRUE, n_genes = n_genes, pvalueCutoff = pvalue_cutoff_ORA, qvalueCutoff = qvalue)
 ```
 
 ```{r over_representation_analysis_up, fig.width=10, results="asis"}
