@@ -1,5 +1,5 @@
 ---
-title: "Introduction to the analysis of bulk RNAseq in {Project_name}"
+title: "Introduction to the analysis of bulk RNAseq in NuMA project"
 output:
   workflowr::wflow_html:
     toc: true
@@ -11,12 +11,12 @@ author: "Gianluca Alessio Mariani"
 
 params:
   sample_info_file: "./data/samples_info.tsv"
+  # sample_info_file: "./data/samples_info_test_multbatch.tsv"
+  utils_file: "./src/__utils_rna_seq_functions.R"
   dds_file: "./data/deseq2.dds.RData"
   min_sample: 2
-  logfc: log2(2)
-  qvalue: 0.05
-
-  descriptions_file: "./data/descriptions_01.yaml" 
+  # logfc: 1
+  # qvalue: 0.05
 ---
 
 ```{r}
@@ -31,21 +31,30 @@ knitr::opts_chunk$set(echo       = FALSE,
 ```
 
 ```{r parameters}
-library(yaml)
-
 min_sample = params$min_sample
-logfc=params$logfc
-qvalue=params$qvalue
+# logfc=params$logfc
+# qvalue=params$qvalue
 rdata_file=params$dds_file
-descriptions=yaml::read_yaml(params$descriptions_file)
 ```
 
 ## Introduction
 
-```{r introduction, results="asis", echo=FALSE}
-cat(descriptions$main, sep = "\n")
-```
+These sequencing experiments are part of an ongoing investigation into the nuclear functions of NuMA (Nuclear Mitotic Apparatus protein). 
+NuMA is a multifunctional protein, primarily known for its essential role in mitotic spindle organization. 
+However, increasing evidence suggests that it may also influence transcriptional regulation during interphase.
 
+In this study, the NuMA degradation protocol and the cell synchronization strategy has been modified to minimize perturbations to the cells’ transcriptional landscape. 
+This approach aims to better isolate the specific effects of NuMA depletion from secondary effects related to synchronization or stress responses.
+
+The dataset includes biological triplicates for each of the following four experimental conditions:
+
+- **S–NuMA**: synchronized cells in which NuMA has been degraded.
+
+- **S+NuMA**: synchronized cells expressing wild-type NuMA, serving as the matched control.
+
+- **NS–NuMA**: non-synchronized cells with NuMA degradation.
+
+- **NS+NuMA**: non-synchronized cells with intact NuMA expression, serving as the control.
 
 ### Overview of the analysis steps
 
@@ -60,7 +69,7 @@ The steps from 1 to 4 have been performed using [nf-core/rnaseq](https://nf-co.r
 This report includes analysis from step 5 and 6
 
 ```{r libraries}
-source("src/__utils_rna_seq_functions.R")
+source(params$utils_file)
 
 # LIBRARY
 if (!require("DT")) install.packages('DT')
@@ -99,17 +108,17 @@ Each sample is described by:
 
   - batch: the experimental batch of each sample
 
-  - condition: the treatment condition (e.g. control, knockdown, treated, etc...)
+  - condition: the treatment condition (control, knockdown, treated, etc...)
 
   - condition_description: a descriptive version of the condition to improve clarity in the presentation of data
 
 ```{r load_samples, results="asis"}
 
-# Leggi i dati
+# Get information
 sample_info <- read.table(params$sample_info_file, header = TRUE, sep = "\t")
 rownames(sample_info) <- sample_info$sample
 
-# Converti tutte le colonne a fattori
+# Convert to factors
 sample_info[] <- lapply(sample_info, as.factor)
 
 clean_sample_info <- sample_info[, !(colnames(sample_info) %in% c("sample_type", "sample_group"))]
@@ -126,69 +135,40 @@ datatable(
     rownames = FALSE )
 ```
 
-```{r additional_data, results="asis"}
-
-# 1. Rileva batch effect
-n_batches <- length(unique(sample_info$batch))
-batch_effect <- n_batches > 1
-
-# 2. Identifica i campioni tecnici di controllo (tc)
-# Si assume che 'sample_type' contenga livelli come "tc", "t", "c", "e"
-technical_controls <- subset(sample_info, sample_type %in% c("tc", "t"))
-```
-
-```{r batch_effect_text, results="asis", echo=FALSE}
-if (nrow(technical_controls) == 0 && batch_effect) {
-  warning("⚠️ Batch effect detected but no technical control specified (sample_type == 'tc' or 't')")
-}
-
-# Testo base
-batch_text <- paste0(
-  "### Batch Effect Correction\n\n",
-  "Differential expression analysis is performed using a custom function, which accounts for batch effect. ",
-  "A batch effect occurs when in an experiment non-biological factors, like laboratory conditions or instruments used, cause changes in the data produced by the experiment.")
-cat(batch_text)
-
-# Aggiungi frase in base a batch_effect
-if (batch_effect) {
-  cat("<br><br>In this analysis the samples have been collected in", n_batches, "different batches, so batch correction will be applied.")
-} else {
-  cat("<br><br>In this analysis the samples have been collected in only", n_batches, "batch, so no batch correction will be applied.")
-}
-```
-
 ```{r sample_grouping, results="asis"}
-# 3. Crea lista dei gruppi sperimentali per DGE
-# Per ogni sample_group, identifica exp vs control
 deseq_groups <- list()
 
 for (grp in levels(sample_info$sample_group)) {
   group_samples <- subset(sample_info, sample_group == grp)
-  
-  # Separazione campioni
-  exp_samples <- subset(group_samples, sample_type == "e")
-  ctrl_samples <- subset(group_samples, sample_type %in% c("c", "tc"))
-  
-  if (nrow(exp_samples) > 0 && nrow(ctrl_samples) > 0) {
-    # Prendi i nomi campioni
-    exp_sample_names <- rownames(exp_samples)
-    ctrl_sample_names <- rownames(ctrl_samples)
+
+  # get control and treatment samples
+  ctrl_samples <- subset(group_samples, sample_type %in% c("c", "tc", "control", "wt", "wild-type", "wildtype"))
+  exp_samples_full <- group_samples[!(group_samples$sample_type %in% ctrl_samples$sample_type), ]
+  comparison = 0
+  if (nrow(exp_samples_full) > 0 && nrow(ctrl_samples) > 0) {
     
-    # Prendi le condizioni (testo descrizione) uniche per experimental e control
-    exp_conditions <- unique(exp_samples$condition_description)
-    ctrl_conditions <- unique(ctrl_samples$condition_description)
-    
-    # Unisci le condizioni in una stringa separata da virgole (se più di una)
-    exp_conditions_text <- paste(exp_conditions, collapse = ", ")
-    ctrl_conditions_text <- paste(ctrl_conditions, collapse = ", ")
-    
-    deseq_groups[[as.character(grp)]] <- list(
-      group_id = grp,
-      experimental = exp_sample_names,
-      control = ctrl_sample_names,
-      exp_condition = exp_conditions_text,
-      ctrl_condition = ctrl_conditions_text
-    )
+    # given one control, there might be multiple associated treatments
+    for(treatment in as.vector(unique(exp_samples_full$sample_type))){
+      exp_samples = exp_samples_full[exp_samples_full$sample_type == treatment, ]
+      
+      exp_sample_names <- rownames(exp_samples)
+      ctrl_sample_names <- rownames(ctrl_samples)
+
+      exp_conditions <- unique(exp_samples$condition_description)
+      ctrl_conditions <- unique(ctrl_samples$condition_description)
+
+      exp_conditions_text <- paste(exp_conditions, collapse = ", ")
+      ctrl_conditions_text <- paste(ctrl_conditions, collapse = ", ")
+
+      deseq_groups[[paste0("group_", as.character(grp), "_set_", as.character(comparison))]] <- list(
+        group_id = grp,
+        experimental = exp_sample_names,
+        control = ctrl_sample_names,
+        exp_condition = exp_conditions_text,
+        ctrl_condition = ctrl_conditions_text
+      )
+      comparison = comparison + 1
+    }
   } else {
     warning(paste("The group", grp, "does not have a valid comparison (exp + ctrl)"))
   }
@@ -210,16 +190,16 @@ if (length(deseq_groups) > 0) {
   for (grp_name in names(deseq_groups)) {
     grp <- deseq_groups[[grp_name]]
     
-    # Costruisci la descrizione confronto
+    # Get comparison
     comparison_text <- paste0("(", grp$exp_condition, " vs ", grp$ctrl_condition, ")")
     
     text_deseq_groups <- paste0(text_deseq_groups,
-      "\n\n",
+      "\n",
       "➤ Group: ", grp_name, ", ", comparison_text, "\n",
-      "\n\t- **Experimental samples** (", grp$exp_condition, ", e):\n",
+      "\n\t- **'Treated' samples** (", grp$exp_condition, ", e):\n",
       paste0("\t\t", grp$experimental, collapse = "\n"), "\n",
       "\n\t- **Control Samples** (", grp$ctrl_condition, ", c/tc):\n",
-      paste0("\t\t", grp$control, collapse = "\n"), "\n"
+      paste0("\t\t", grp$control, collapse = "\n"), "\n\n"
     )
   }
   
@@ -238,18 +218,16 @@ cat(text_html)
 # Load DESeq2 object containing raw count data
 load(rdata_file)
 
-# Pulisci i nomi campioni in sample_info
+# Clean names
 sample_info$sample <- make.names(sample_info$sample)
 rownames(sample_info) <- sample_info$sample
 
-# Trova i campioni comuni
+# Get common samples
 common_samples <- intersect(colnames(dds), sample_info$sample)
-
-# Filtra dds e sample_info per tenere solo i campioni comuni
 dds <- dds[, common_samples]
 sample_info <- sample_info[common_samples, ]
 
-# Controlla che i nomi siano allineati
+# sanity check
 stopifnot(all(colnames(dds) == rownames(sample_info)))
 
 colData(dds)$sample <- sample_info$sample
@@ -257,19 +235,29 @@ colData(dds)$sample_description <- sample_info$sample_description
 colData(dds)$condition <- sample_info$condition
 colData(dds)$condition_description <- sample_info$condition_description
 
-# Supponiamo di avere il dataframe sample_info con queste colonne
-design_vars <- c("batch", "condition")  # variabili candidate per il design
-# Controlla quali variabili sono costanti
+# possible design variables
+design_vars <- c("batch", "condition", "time")  
+
+# Remove constant
 constant_vars <- check_constant_vars(sample_info, design_vars)
 if (length(constant_vars) > 0) {
-  message("Variabili costanti trovate e rimosse dal design: ", paste(constant_vars, collapse = ", "))
+  message("Constant variable removed: ", paste(constant_vars, collapse = ", "))
 }
-# Variabili valide da usare nel design (non costanti)
 valid_vars <- setdiff(design_vars, constant_vars)
 if (length(valid_vars) == 0) {
-  stop("Nessuna variabile valida per il design. Controlla i dati.")
+  stop("No variable for design. condition column is missing or it contains a single condition.")
 }
-# Costruisci la formula del design in modo dinamico
+
+# Remove missing design variables
+missing_vars = valid_vars[!(valid_vars %in% colnames(sample_info))]
+if (length(missing_vars) > 0) {
+  message("IMPORTANT!!!! missing variable removed: ", paste(missing_vars, collapse = ", "))
+}
+valid_vars <- setdiff(valid_vars, missing_vars)
+if (length(valid_vars) == 0) {
+  stop("No variable for design. condition column is missing or it contains a single condition.")
+}
+
 design_formula <- as.formula(
   paste("~", paste(valid_vars, collapse = " + "))
 )
@@ -297,6 +285,7 @@ By reducing the high-dimensional gene expression data into a few principal compo
 
 counts <- assay(dds)
 min_reads <- round(ncol(counts) / 2)
+min_sample <- length(unique(sample_info$condition))
 
 out <- preprocessing_PCA(counts, 
     min_reads, 
@@ -313,23 +302,99 @@ colData(rld)$sample_description <- sample_info$sample_description
 colData(rld)$condition <- sample_info$condition
 colData(rld)$condition_description <- sample_info$condition_description
 
-sample_names <- colnames(rld)  # nomi attuali delle colonne
-alt_labels <- colData(rld)$sample_description  # nomi alternativi (sample_description)
+sample_names <- colnames(rld)  
+alt_labels <- colData(rld)$sample_description 
 name_map <- setNames(as.character(alt_labels), sample_names)
 
-mypcaAnalysis(
-  title_1vs2 = "PCA analysis all samples", 
+p <- mypcaAnalysis_test(
+  title_1vs2 = "Analysis on all samples", 
   rld = rld,
-  intgroup = "condition_description"
+  intgroup1 = "condition_description",
+  intgroup2 = "batch"
 )
 
+p
 ```
 
-### Interpretation PCA Analysis
+```{r batch_effect, results="asis", echo=FALSE}
 
-```{r PCA_interpretation, results="asis", echo=FALSE}
-cat(descriptions$PCA, sep = "\n")
+# n_batches <- length(unique(sample_info$batch))
+# var_threshold <- 0.1
+# pval_threshold <- 0.05
+
+# do_batch_correction <- FALSE  # default: no correction
+
+# if (n_batches > 1) {
+#   check <- check_batch_effect(rld, batch_var = "batch", cond_var = "condition_description", var_threshold = var_threshold)
+#   confound_check <- check_batch_condition_confounding(sample_info, batch_var = "batch", cond_var = "condition_description", pval_threshold = pval_threshold)
+  
+#   batch_var_exp_pct <- round(check$batch_var_exp * 100, 2)
+#   threshold_pct <- var_threshold * 100
+  
+#   warning_msg <- ""
+#   if (!is.null(confound_check$warning)) {
+#     warning_msg <- paste0(confound_check$warning, "<br><br>")
+#   }
+  
+#   if (confound_check$confounded) {
+#     batch_text <- paste0(
+#       "Samples come from ", n_batches, " different batches.<br><br>",
+#       "The independence test between batch and condition indicates a strong association (p-value = ",
+#       signif(confound_check$p_value, 3), ").<br>",
+#       "This suggests that batch and condition are confounded, and batch correction might remove true biological signal.<br><br>",
+#       "Therefore, batch correction <b>IS DISCOURAGED</b> to avoid introducing artifacts."
+#     )
+#     do_batch_correction <- FALSE
+    
+#   } else if (check$batch_significant) {
+#     batch_text <- paste0(
+#       "Samples come from ", n_batches, " different batches.<br>",
+#       "The variance explained by batch in the first two principal components is approximately <b>", batch_var_exp_pct, "%</b>, exceeding the threshold of <b>", threshold_pct, "%</b>.<br>",
+#       "Batch correction <b>IS SUGGESTED</b>."
+#     )
+#     do_batch_correction <- TRUE
+    
+#   } else {
+#     batch_text <- paste0(
+#       "Samples come from ", n_batches, " batches.<br>",
+#       "The variance explained by batch is low (", batch_var_exp_pct, "%), below the threshold of ", threshold_pct, "%.<br>",
+#       "Batch correction <b>IS DISCOURAGED</b> to preserve true biological signal."
+#     )
+#     do_batch_correction <- FALSE
+#   }
+  
+#   # Print output only if batch correction is suggested or there is a warning
+#   if (do_batch_correction || warning_msg != "") {
+#     cat("### Batch Effect Correction\n\n")
+#     cat(batch_text)
+#     cat("\n\n")
+#     cat(warning_msg)
+#   }
+  
+# } else {
+#   # Only one batch, no batch effect, no output
+#   do_batch_correction <- FALSE
+# }
+
 ```
+
+<div style="color:red;">
+
+### Interpretation PCA Analysis and evaluation of batch effect
+
+The PCA analysis reveals well-defined clusters corresponding to all four conditions. We conclude that:
+
+- The samples were properly collected.
+
+- The samples show good quality.
+
+- No evident outlier samples were detected.
+
+- The variation between conditions is greater between NS and S samples (PC1: 44.5%) than between experiment and control within the same condition (PC2: 20.5%).
+
+- All samples have been collected in the same batch, so batch effect is not present.
+
+</div>
 
 ## Correlation analysis
 
@@ -338,32 +403,33 @@ We calculated the pairwise Spearman correlation coefficients between samples and
 Rows and columns are hierarchically clustered based on these correlations to reveal patterns of similarity and potential groupings among samples.
 
 ```{r heatmap_correlation, results="asis"}
-# Calcola la matrice di correlazione tra campioni (Pearson)
+
+# Corellation between samples
 cor_matrix <- cor(assay(rld), method = "spearman")
 colnames(cor_matrix) <- name_map[colnames(cor_matrix)]
 rownames(cor_matrix) <- name_map[rownames(cor_matrix)]
 
-# Matrice delle distanze per il clustering (1 - correlazione)
+# Distance matrix defined as 1-correlation
 clustering_dist <- as.dist(1 - cor_matrix)
 
-# Annota i gruppi
+# Annotate groups
 annotation_df <- as.data.frame(colData(dds)[, "condition_description", drop = FALSE])
 colnames(annotation_df) <- "Condition"
 rownames(annotation_df) <- name_map[rownames(annotation_df)]
 
-# Estrai le condizioni uniche da colData
+# Unique conditions
 conditions <- unique(as.character(colData(dds)$condition_description))
 n_conditions <- length(conditions)
 
-# Palette automatica (Set2 supporta fino a 8 colori distinti e leggibili)
+# Color palette
 palette_colors <- brewer.pal(min(n_conditions, 8), "Set2")
+palette_colors <- palette_colors[seq_len(n_conditions)]
 
-# Se ci sono più condizioni della palette, crea una palette più grande
 if (n_conditions > length(palette_colors)) {
   palette_colors <- colorRampPalette(brewer.pal(8, "Set2"))(n_conditions)
 }
 
-# Mappa condizione -> colore
+# color mapping
 annotation_colors <- list(
   Condition = setNames(palette_colors, conditions)
 )
@@ -371,7 +437,7 @@ annotation_colors <- list(
 
 ### **Spearman Correlation: General Interpretation**
 
-####  **High Correlation Values** (e.g., > 0.98)  
+####  **High Correlation Values** (> 0.98)  
 *Between replicates of the same condition:*  
 
   - A very good quality signal  
@@ -386,7 +452,7 @@ annotation_colors <- list(
 
   - Or poor separation due to contamination or mislabeling
 
-#### **Lower Correlation Values** (e.g., < 0.95)  
+#### **Lower Correlation Values** (< 0.95)  
 *Between replicates of the same condition:* 
 
   - May suggest technical or biological issues:  
@@ -418,7 +484,7 @@ Therefore, lower correlation values between replicates should not be interpreted
 Below we present the heatmap associated spearman correlation.
 
 ```{r heatmap_correlation_plot, fig.width=8, fig.height=6}
-# Heatmap direttamente sulla matrice di correlazione
+
 pheatmap(
   cor_matrix,
   clustering_distance_rows = clustering_dist,
@@ -428,24 +494,34 @@ pheatmap(
   main = "Sample-to-sample correlation (Spearman)",
   display_numbers = TRUE,
   number_format = "%.2f",
-  fontsize_number = 7,     # aumenta il font dei numeri
-  cellheight = 14,          # altezza delle celle
-  cellwidth = 14            # larghezza delle celle
+  fontsize_number = 7,
+  cellheight = 14,
+  cellwidth = 14
 )
 ```
 
+<div style="color:red;">
+
 ### Interpretation Spearman Correlation Heatmap
 
-```{r correlation_heatmap_interpretation, results="asis", echo=FALSE}
-cat(descriptions$correlation_heatmap, sep = "\n")
-```
+The correlation heatmap shows expected results:
+
+- Samples cluster according to their respective conditions.
+
+- Correlation values are consistent:
+  - Higher correlations between replicates (≥ 0.98).
+  - Lower correlations between different conditions (0.96–0.97). 
+  
+Although the correlation between the different conditions is not very low, this may not indicate an issue with the sample collection. Instead, it could suggest a lack of significant differences between the two conditions under consideration, which would be reflected in a smaller number of differentially expressed genes (DEGs) detected.
+
+</div>
 
 ## Library Sizes
 
 A bar plot displaying total read counts per sample is shown below
 
 ```{r counts_dds, results="asis", fig.width=8}
-# Create a data frame for plotting
+
 lib_sizes <- data.frame(
   sample_description = colData(dds)$sample_description,
   total_counts = colSums(counts(dds))
@@ -461,11 +537,13 @@ ggplot(lib_sizes, aes(x = sample_description, y = total_counts)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
+<div style="color:red;">
+
 ### Interpretation Library Sizes
 
-```{r library_sizes_interpretation, results="asis", echo=FALSE}
-cat(descriptions$library_sizes, sep = "\n")
-```
+Library sizes are comparable across samples, indicating no imbalanced pooling during library sample collection.
+
+</div>
 
 ## Violin plot of VST-normalized counts
 
@@ -474,19 +552,19 @@ Below we present a violin plot of the VST-normalized read counts by sample.
 A violin plot of VST-normalized counts provides an overview of the global distribution of gene expression values across samples after normalization.  This plot allows for the detection of potential outliers, technical biases, or inconsistencies in distribution across samples, which could affect downstream analyses. A consistent distribution of VST counts across samples suggests successful normalization and comparable expression profiles.
 
 ```{r violin_dds, results="asis", fig.width=8, fig.height=5}
-# Estrai i dati rlog e riformattali
+
 rld_matrix <- assay(rld)
 df_long <- reshape2::melt(rld_matrix, varnames = c("gene", "sample"), value.name = "expression")
 
 df_long$sample <- name_map[as.character(df_long$sample)]
 
-# Crea violin plot
+
 ggplot(df_long, aes(x = sample, y = expression)) +
   geom_violin(trim = FALSE, fill = "#8da0cb", color = "black") +
-  geom_boxplot(width = 0.1, outlier.size = 0.5) +  # opzionale, overlay del boxplot
+  geom_boxplot(width = 0.1, outlier.size = 0.5) +
   theme_minimal() +
   theme(
-    axis.text.x = element_text(angle = 60, hjust = 1),  # rotazione etichette asse X
+    axis.text.x = element_text(angle = 60, hjust = 1),
     axis.title.x = element_blank()
   ) +
   labs(
@@ -495,9 +573,16 @@ ggplot(df_long, aes(x = sample, y = expression)) +
   )
 ```
 
+<div style="color:red;">
+
 ### Interpretation Violin plot of VST-normalized counts
 
-```{r violin_plot_interpretation, results="asis", echo=FALSE}
-cat(descriptions$violin_plot, sep = "\n")
-```
+The violin plot of counts data displays a consistent distribution of VST counts across samples.  
+This indicates no substantial differences in gene expression profiles between the conditions and confirms the quality and reliability of the samples, supporting the inclusion of all samples in subsequent analyses.
+
+</div>
+
+## Differential expression analysis
+
+The report with specific comparisons can be found here:
 
