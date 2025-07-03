@@ -23,3 +23,6 @@ This  website contains RNAseq data analyses for the NuMA project.
 
 - [Non-synchronized NuMA- vs Non-synchronized NuMA+](03_numa_vs_nonuma_ns.html)<span class="label btn-warning">new report</span>
 
+- [Synchronized NuMA- vs Synchronized NuMA+ - Outliers removed](04_numa_vs_nonuma_s_no_outliers.html)<span class="label btn-warning">new report</span>
+
+- [Non-synchronized NuMA- vs Non-synchronized NuMA+ - Outliers removed](05_numa_vs_nonuma_ns_no_outliers.html)<span class="label btn-warning">new report</span>

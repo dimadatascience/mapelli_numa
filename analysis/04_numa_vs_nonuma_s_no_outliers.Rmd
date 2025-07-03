@@ -12,22 +12,22 @@ params:
   design_vars: 
     - "batch" 
     - "condition"
-  num_samples: 6
-  num_replicates: 3
+  num_samples: 4
+  num_replicates: 2
   batch_effect: null
   logfc: 1
   qvalue: 0.05
-  sample_info_file: "./data/samples_info.tsv"
+  sample_info_file: "./data/samples_info_no_outliers.tsv"
   utils_file: "./src/__utils_rna_seq_functions.R"
   dds_file: "./data/deseq2.dds.RData" 
   exp:
     value:
-      condition: "NS_no_NuMA"
-      description: "Non-synchronized NuMA-"
+      condition: "S_no_NuMA"
+      description: "Synchronized NuMA-"
   contr:
     value:
-      condition: "NS_plus_NuMA"
-      description: "Non-synchronized NuMA+"
+      condition: "S_plus_NuMA"
+      description: "Synchronized NuMA+"
 ---
 
 ```{r}
@@ -48,10 +48,12 @@ rdata_file=params$dds_file
 ```
 
 ```{r dynamic_title, results="asis", echo=FALSE}
-cat(paste0("# ", params$exp$description, " vs ", params$contr$description, "\n"))
+cat(paste0("# ", params$exp$description, " vs ", params$contr$description, " - Removed outliers", "\n"))
 ```
 
 The objective of this report is to investigate differential gene expression between the two conditions and to conduct gene ontology enrichment analysis to explore the biological functions involved.
+
+In this case the outlier samples S61886_S-NuMA_B and S61882_S_plus_NuMA_A have been removed.
 
 ```{r libraries}
 source(params$utils_file)
@@ -300,10 +302,9 @@ mypcaAnalysis(
 
 ### Interpretation PCA Analysis
 
-Although the samples do not form perfectly distinct clusters, the first principal component clearly separates the experimental and control groups. 
-This supports the validity of the samples.
+Although the samples do not form perfectly distinct clusters, the first principal component clearly separates the experimental and control groups, supporting the validity of the samples.
 
-The same analysis will be repeated after removing the outlier sample S61878_NS_plus_NuMA_C to assess whether its removal improves the quality of the differential gene expression results.
+However, even after removing the outlier samples, the PCA still has difficulty clustering the samples distinctly by condition.
 
 </div>
 

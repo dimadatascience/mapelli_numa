@@ -1,5 +1,4 @@
 ---
-title: "NuMA vs absense of NuMA in syncronized cells"
 output:
   workflowr::wflow_html:
     toc: true
@@ -10,17 +9,16 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 author: "Gianluca Alessio Mariani"
 
 params:
-  min_sample: 2
   design_vars: 
     - "batch" 
     - "condition"
   num_samples: 6
   num_replicates: 3
-  technical_control: null
   batch_effect: null
   logfc: 1
   qvalue: 0.05
   sample_info_file: "./data/samples_info.tsv"
+  utils_file: "./src/__utils_rna_seq_functions.R"
   dds_file: "./data/deseq2.dds.RData" 
   exp:
     value:
@@ -30,8 +28,6 @@ params:
     value:
       condition: "S_plus_NuMA"
       description: "Synchronized NuMA+"
-
-  descriptions_file: "./data/descriptions_02.yaml" 
 ---
 
 ```{r}
@@ -46,13 +42,9 @@ knitr::opts_chunk$set(echo       = FALSE,
 ```
 
 ```{r parameters}
-library(yaml)
-
-min_sample = params$min_sample
 logfc=params$logfc
 qvalue=params$qvalue
 rdata_file=params$dds_file
-descriptions=yaml::read_yaml(params$descriptions_file)
 ```
 
 ```{r dynamic_title, results="asis", echo=FALSE}
@@ -62,7 +54,7 @@ cat(paste0("# ", params$exp$description, " vs ", params$contr$description, "\n")
 The objective of this report is to investigate differential gene expression between the two conditions and to conduct gene ontology enrichment analysis to explore the biological functions involved.
 
 ```{r libraries}
-source("./src/__utils_rna_seq_functions.R")
+source(params$utils_file)
 
 library("DESeq2")
 library(rtracklayer)
@@ -88,18 +80,8 @@ org <- org.Hs.eg.db
 
 ```
 
-```{r parameters_text, results="asis", echo=FALSE}
-cat("## Parameters
-
-Below is the list of parameters used in this report to define differential gene expression.
-
-- min_sample = ", min_sample, ", minimum number of samples where the gene needs to have at least 1 read;
-- logfc = ", logfc, "
-- qvalue = ", qvalue, ", Adjusted p-value threshold (false discovery rate)")
-```
-
 ```{r load_data_samples, results="asis"}
-# Leggi i dati
+# load data
 if (!file.exists(params$sample_info_file)) {
   stop("⚠️ File sample_info_file not found: ", params$sample_info_file)
 } else {
@@ -108,16 +90,14 @@ if (!file.exists(params$sample_info_file)) {
 
 rownames(sample_info) <- sample_info$sample
 
-# Converti tutte le colonne a fattori
+# convert columns to factors
 sample_info[] <- lapply(sample_info, as.factor)
 ```
 
 ```{r group_generation, results="asis"}
-# 3. Crea lista dei gruppi sperimentali per DGE
-# Per ogni sample_group, identifica exp vs control
 deseq_groups <- list()
 
-# parametri passati da main.R
+# read parameters
 expA <- params$exp$condition
 contrA <- params$contr$condition
 vs_descr <- paste(params$exp$description, " vs ", params$contr$description)
@@ -125,7 +105,7 @@ vs_descr <- paste(params$exp$description, " vs ", params$contr$description)
 for (grp in levels(sample_info$sample_group)) {
   group_samples <- subset(sample_info, sample_group == grp)
   
-  # Separazione campioni
+  # separate samples
   
   ctrl_samples <- subset(group_samples, sample_type %in% c("c", "tc", "control"))
   exp_samples_full <- group_samples[!(group_samples$sample_type %in% ctrl_samples$sample_type), ]
@@ -133,15 +113,15 @@ for (grp in levels(sample_info$sample_group)) {
   if (nrow(exp_samples_full) > 0 && nrow(ctrl_samples) > 0) {
     for(treatment in unique(exp_samples_full$sample_type)){
       exp_samples = exp_samples_full[exp_samples_full$sample_type == treatment, ]
-      # Prendi i nomi campioni
+      # set sample names
       exp_sample_names <- rownames(exp_samples)
       ctrl_sample_names <- rownames(ctrl_samples)
       
-      # Prendi le condizioni (testo descrizione) uniche per experimental e control
+      # set sample conditions
       exp_conditions <- unique(exp_samples$condition_description)
       ctrl_conditions <- unique(ctrl_samples$condition_description)
       
-      # Unisci le condizioni in una stringa separata da virgole (se più di una)
+      # join conditions into strings
       exp_conditions_text <- paste(exp_conditions, collapse = ", ")
       ctrl_conditions_text <- paste(ctrl_conditions, collapse = ", ")
       
@@ -164,9 +144,9 @@ selected_group_name <- NULL
 for (grp_name in names(deseq_groups)) {
   grp <- deseq_groups[[grp_name]]
   
-  # Controlla se il gruppo contiene almeno un campione sperimentale con exp_tag
+  # check if at least 1 sample has the experimental tag
   has_exp_tag <- any(sample_info[grp$experimental, "condition"] == expA)
-  # Controlla se il gruppo contiene almeno un campione controllo con contr_tag
+  # check if at least 1 sample has the control tag
   has_contr_tag <- any(sample_info[grp$control, "condition"] == contrA)
   
   if (has_exp_tag && has_contr_tag) {
@@ -179,11 +159,92 @@ if (is.null(selected_group_name)) {
   stop("⚠️ No valid group for comparison ", expA, " vs ", contrA)
 }
 
-# Ora usa solo il gruppo selezionato per downstream
+# use selected group for downstream analysis
 selected_group <- deseq_groups[[selected_group_name]]
 ```
 
-## 🧬 Comparison Group and Differential Gene Expression Analysis Plan
+```{r load_data_deseq, results="asis"}
+# Load DESeq2 object containing raw count data
+load(rdata_file)
+
+sample_info$sample <- make.names(sample_info$sample)
+rownames(sample_info) <- sample_info$sample
+
+# find common samples
+common_samples <- intersect(colnames(dds), sample_info$sample)
+
+# filter objects
+dds <- dds[, common_samples]
+sample_info <- sample_info[common_samples, ]
+
+# verify alignment
+stopifnot(all(colnames(dds) == rownames(sample_info)))
+
+# Ensure sample names are aligned
+rownames(colData(dds)) <- sample_info$sample
+dds$sample <- sample_info$sample
+
+design_vars <- c(params$design_vars)
+# check which variables are constant
+constant_vars <- check_constant_vars(sample_info, design_vars)
+if (length(constant_vars) > 0) {
+  message("Found constant variables: ", paste(constant_vars, collapse = ", "), ", removed from the design.")
+}
+# valid (non constant) variables
+valid_vars <- setdiff(design_vars, constant_vars)
+if (length(valid_vars) == 0) {
+  stop("No suitable variable for the design. Check the data.")
+}
+# build dynamic design formula
+design_formula <- as.formula(
+  paste("~", paste(valid_vars, collapse = " + "))
+)
+```
+
+```{r de_analysis_A, include=FALSE}
+titleA <- paste(expA, "vs", contrA)
+titleA_und <- gsub(" ", "_", titleA)
+
+# # filter sample_info for selected samples
+# samples_exp_A <- sample_info[sample_info$condition %in% c(expA, contrA), ]
+# # filter dds columns for min_reads and min_sample calculation
+# counts_exp_A <- counts(dds)[, rownames(samples_exp_A)]
+# calculate min_reads
+# mreads_A <- round(ncol(counts_exp_A) / 2)
+counts <- assay(dds)
+mreads_A <- round(ncol(counts) / 2)
+# calculate min_samples
+# tot_conditions <- length(unique(sample_info$condition[sample_info$condition %in% c(expA, contrA)]))
+min_sample <- length(unique(sample_info$condition))
+# run mydeseq2
+out_A <- specific_deseq2(counts = counts,
+                          min_reads = mreads_A,
+                          min_sample = min_sample,
+                          sample_info = sample_info,
+                          exp = expA,
+                          contr = contrA,
+                          design_formula = design_formula)
+# extract output
+res_A <- out_A[["res"]]
+rld_A <- out_A[["rld"]]
+df_all_genes_A <- out_A[["df_all_genes"]]
+coldata_A <- out_A[["coldata"]]
+```
+
+```{r parameters_text, results="asis", echo=FALSE}
+cat("## Parameters
+
+Below is the list of parameters used in this report to define differential gene expression.
+
+- logfc = ", logfc, "
+- qvalue = ", qvalue, ", Adjusted p-value threshold (false discovery rate)
+- Lowly expressed genes are removed to reduce noise. Lowly expressed genes are here considered as:
+   - genes having total number of reads less than half of the total samples, ", mreads_A, ";
+   - genes expressed in less samples than the total number of conditions, ", min_sample, ".")
+cat("<br><br>")
+```
+
+## Comparison Group and Differential Gene Expression Analysis Plan
 
 
 Below we show the comparison group considered for the analysis presented in this report.
@@ -211,72 +272,6 @@ text_html <- gsub("\t", "&nbsp;&nbsp;&nbsp;&nbsp;", text_html)
 cat(text_html)
 ```
 
-```{r load_data_deseq, results="asis"}
-# Load DESeq2 object containing raw count data
-load(rdata_file)
-
-sample_info$sample <- make.names(sample_info$sample)
-rownames(sample_info) <- sample_info$sample
-
-# Trova i campioni comuni
-common_samples <- intersect(colnames(dds), sample_info$sample)
-
-# Filtra entrambi gli oggetti
-dds <- dds[, common_samples]
-sample_info <- sample_info[common_samples, ]
-
-# Verifica che siano allineati
-stopifnot(all(colnames(dds) == rownames(sample_info)))
-
-# Ensure sample names are aligned
-rownames(colData(dds)) <- sample_info$sample
-dds$sample <- sample_info$sample
-
-# Supponiamo di avere il dataframe sample_info con queste colonne
-design_vars <- c(params$design_vars)  # variabili candidate per il design
-# Controlla quali variabili sono costanti
-constant_vars <- check_constant_vars(sample_info, design_vars)
-if (length(constant_vars) > 0) {
-  message("Found constant variables: ", paste(constant_vars, collapse = ", "), ", removed from the design.")
-}
-# Variabili valide da usare nel design (non costanti)
-valid_vars <- setdiff(design_vars, constant_vars)
-if (length(valid_vars) == 0) {
-  stop("No suitable variable for the design. Check the data.")
-}
-# Costruisci la formula del design in modo dinamico
-design_formula <- as.formula(
-  paste("~", paste(valid_vars, collapse = " + "))
-)
-```
-
-```{r de_analysis_A, include=FALSE}
-titleA <- paste(expA, "vs", contrA)
-titleA_und <- gsub(" ", "_", titleA)
-
-# Filtra sample_info per i 6 campioni coinvolti
-samples_exp_A <- sample_info[sample_info$condition %in% c(expA, contrA), ]
-# Estrai le colonne giuste da dds (usa direttamente counts da dds)
-counts_exp_A <- counts(dds)[, rownames(samples_exp_A)]
-# Calcola soglia minima di letture (opzionale)
-mreads_A <- round(ncol(counts_exp_A) / 2)
-tot_conditions <- length(unique(sample_info$condition[sample_info$condition %in% c(expA, contrA)]))
-min_sample <- tot_conditions
-# Lancia mydeseq2
-out_A <- specific_deseq2(counts = counts_exp_A,
-                          min_reads = mreads_A,
-                          min_sample = min_sample,
-                          sample_info = samples_exp_A,
-                          exp = expA,
-                          contr = contrA,
-                          design_formula = design_formula)
-# Estrai risultati
-res_A <- out_A[["res"]]
-rld_A <- out_A[["rld"]]
-df_all_genes_A <- out_A[["df_all_genes"]]
-coldata_A <- out_A[["coldata"]]
-```
-
 ```{r deg_text, results="asis", echo=FALSE}
 
 cat("---
@@ -285,39 +280,32 @@ The RNAseq data for this analysis:\n
   - aim to investigate what is the difference in gene expression between", params$exp$description, "and", params$contr$description, "\n
 
 The sample population include:\n
-  - ", params$num_samples, " samples,", tot_conditions, " conditions, ", params$exp$description, "and", params$contr$description, " in ", params$num_replicates, " replicates each.\n", "
-
-#### Background Correction\n")
-if (!is.null(params$technical_control)) {
-  cat("In this analysis the technical control is present: ", params$technical_control, "and will be used to apply background correction\n")
-} else {
-  cat("No technical control samples are present, so no background correction is applied. All analyses are based on normalized counts and a model that considers only the experimental condition.\n")
-}
-
-cat("Lowly expressed genes are removed to reduce noise. Lowly expressed genes are here considered as:
-
-- genes having total number of reads less than half of the samples, ", mreads_A, ";
-- genes expressed in less samples than the number of conditions, ", min_sample, ".")
-
+  - ", params$num_samples, " samples, 2 conditions, ", params$exp$description, "and", params$contr$description, " in ", params$num_replicates, " replicates each.\n")
 ```
 
 ## PCA
 
 Below we present the PCA analysis conducted on the two specific conditions analyzed in this report.
 
-```{r pca_A}
+```{r pca_A, results="asis"}
+cat("<br><br>")
 mypcaAnalysis(
   title_1vs2 = vs_descr,
   rld = rld_A,
-  intgroup = "condition"
+  intgroup1 = "condition_description"
 )
 ```
 
+<div style="color:red;">
+
 ### Interpretation PCA Analysis
 
-```{r PCA_interpretation, results="asis", echo=FALSE}
-cat(descriptions$PCA_interpretation, sep = "\n")
-```
+Although the samples do not form perfectly distinct clusters, the first principal component clearly separates the experimental and control groups. 
+This supports the validity of the samples.
+
+The same analysis will be repeated after removing the outlier samples S61882_S_plus_NuMA_A and S61886_S-NuMA_B to assess whether their removal improves the quality of the differential gene expression results.
+
+</div>
 
 ## MA plot and volcano plot
 
@@ -325,13 +313,19 @@ cat(descriptions$PCA_interpretation, sep = "\n")
 
 The MA plot is a widely used visualization in differential expression analysis that displays the relationship between the average expression (A) and the log fold change (M) for each gene.  The x-axis represents the mean expression level across samples, while the y-axis shows the log fold change between groups. 
 
-```{r MA_plot_A, results="asis"}
+```{r calculate_MAandVolcano_plots, results="asis"}
 plots_A <- my_MA_andVolcano_plot(
   title_1vs2 = vs_descr,
   res = res_A,
   qvalue = qvalue,
   logfc = logfc,
 )
+```
+
+
+
+```{r MA_plot_A, results="asis"}
+cat("<br><br>")
 plots_A$ma
 ```
 
@@ -340,7 +334,10 @@ plots_A$ma
 The Volcano plot is a graphical method to visualize differential expression results by combining statistical significance and magnitude of change for each gene. 
 It plots the log2 fold change on the x-axis against the negative log10 of the p-value (or adjusted p-value) on the y-axis. 
 
+
+
 ```{r Volcano_plot_A, results="asis"}
+cat("<br><br>")
 plots_A$volcano
 ```
 
@@ -355,7 +352,7 @@ The columns in the table are:
 
   - baseMean: The average normalized count of a gene across all samples, reflecting its overall expression level in the dataset.
 
-  - log2FoldChange: The estimated log2-transformed fold change in expression between two conditions (e.g., experimental vs control). Positive values indicate upregulation, negative values indicate downregulation with respect to control.
+  - log2FoldChange: The estimated log2-transformed fold change in expression between two conditions (experimental vs control). Positive values indicate upregulation, negative values indicate downregulation with respect to control.
 
   - lfcSE: The standard error associated with the log2 fold change estimate, indicating the variability or uncertainty of the fold change measurement.
 
@@ -363,7 +360,7 @@ The columns in the table are:
 
   - pvalue: The raw p-value corresponding to the statistical test for differential expression; it reflects the probability of observing the data assuming no true difference in expression.
 
-  - padj: The p-value adjusted for multiple testing (e.g., using the Benjamini-Hochberg method) to control the false discovery rate (FDR), providing a more reliable significance measure.
+  - padj: The p-value adjusted for multiple testing (using the Benjamini-Hochberg method) to control the false discovery rate (FDR), providing a more reliable significance measure.
 
   - comparison_exp_vs_contr: A label or descriptor indicating the comparison made, specifying which condition is experimental and which is control.
 
@@ -373,9 +370,12 @@ The columns in the table are:
 
   - FoldChange: The fold change in linear scale (non-logarithmic), derived from log2FoldChange (i.e., 2^(log2FoldChange)), representing how many times expression has changed.
 
-  - differentially_expressed: A categorical variable indicating whether the gene is considered differentially expressed (e.g., “yes” or “no”) based on the predefined thresholds for significance and fold change described in the next section.
+  - differentially_expressed: A categorical variable indicating whether the gene is considered differentially expressed (“yes” or “no”) based on the predefined thresholds for significance and fold change described in the next section.
+
+
 
 ```{r all_genes_table_A, results="asis"}
+cat("<br><br>")
 genet_A <- my_genetable(
   res = res_A, 
   title_1vs2 = vs_descr, 
@@ -384,8 +384,6 @@ genet_A <- my_genetable(
 )
 allgenesA <- genet_A[["res"]]
 deg_A <- genet_A[["deg"]]
-# deg_A_pos <- genet_A$deg_dt[["log2FoldChange"]] > 0
-# deg_A_neg <- genet_A$deg_dt[["log2FoldChange"]] < 0
 
 # cat("All genes in", titleA)
 genet_A$res_dt
@@ -395,19 +393,26 @@ genet_A$res_dt
 
 In this table we can find a subset of the previous table that includes the differentially expressed genes (DEGs).
 
-```{r deg_genes_table_A, results="asis", echo=FALSE}
+```{r deg_genes_table_A_description, results="asis", echo=FALSE}
 cat("The genes defined as DEGs need to satisfy these two conditions:
 
 - The associated padj (p-value adjusted for multiple testing) must be inferior to the qvalue of", qvalue, ";
 - The associated log2FoldChange absolute value must be superior to the logfc value of", logfc, ".
 ")
+cat("<br><br>")
+```
 
+
+
+```{r deg_genes_table_A, results="asis", echo=FALSE}
 genet_A$deg_dt
 ```
 
 ## Heatmaps
 
-Given the significant genes, among the differentially expressed genes previously computed, let's visualize the top20 and all the DE genes.
+Given the significant genes, among the differentially expressed genes previously computed, below a visualization of all the DE genes.
+<!-- the top20 and  -->
+
 
 Meaning of Colors
 
@@ -424,23 +429,24 @@ heat_A <- my_heatmaps(
 )
 ```
 
-### Heatmap for the top 20 genes
+<!-- ### Heatmap for the top 20 genes
 
 This heatmap presents the expression profiles of the top 20 genes showing the most statistically significant differential expression, ranked by their adjusted p-values (padj). 
 These genes represent the strongest candidates for biologically relevant changes between conditions. 
-Displaying normalized and scaled expression values across samples, this focused visualization highlights the distinct expression patterns of the most significant genes, facilitating interpretation of key transcriptional differences driving the experimental effects.
+Displaying normalized and scaled expression values across samples, this focused visualization highlights the distinct expression patterns of the most significant genes, facilitating interpretation of key transcriptional differences driving the experimental effects. -->
 
 ```{r heatmap_top20, fig.width=8, fig.height=6, out.width='100%', out.height='100%', results="asis"}
-heat_A$h_20
+# heat_A$h_20
 ```
 
 ### Heatmap for all genes
 
 This heatmap displays the expression levels of all genes detected in the RNA-seq dataset across all samples. 
-The values are normalized and transformed (e.g., via variance stabilizing transformation) to allow comparison across genes and samples.
+The values are normalized and transformed (via variance stabilizing transformation) to allow comparison across genes and samples.
 This comprehensive visualization provides an overview of the global expression patterns, highlighting overall similarities and differences between samples, as well as potential outliers.
 
 ```{r heatmap_all, fig.width=8, fig.height=6, out.width='100%', out.height='100%', results="asis"}
+cat("<br><br>")
 heat_A$h_all
 ```
 
@@ -460,7 +466,7 @@ ontologies <- list(
   MF = "Molecular Functions"
 )
 
-pvalueCutoff <- 0.01
+pvalueCutoff <- 0.05
 gseaA_list <- list()
 chunk_heights <- numeric()
 
@@ -508,37 +514,42 @@ if (nrow(gseaA_list[["MF"]]@result) > 0) {
 
 ## Over representation analysis
 
-We performed a functional enrichment analysis based on Over-Representation Analysis (ORA) using the Reactome pathway database. Unlike GSEA, which considers the entire ranked list of genes, ORA focuses only on genes that meet specific differential expression thresholds (e.g., adjusted p-value and log2 fold change).
-The analysis was conducted separately for upregulated and downregulated genes to identify Reactome pathways that are significantly enriched in each group, compared to what would be expected by chance. This allows for a clearer biological interpretation of distinct transcriptional programs activated or suppressed in the dataset.
-The dot plots below display all significantly enriched Reactome pathways. Each dot’s size represents the number of differentially expressed genes associated with the pathway, while the color reflects the statistical significance of the enrichment (adjusted p-value).
+We performed a functional enrichment analysis based on Over-Representation Analysis (ORA) using the GO pathway database. Unlike GSEA, which considers the entire ranked list of genes, ORA focuses only on genes that meet specific differential expression thresholds (adjusted p-value and log2 fold change).
+The analysis was conducted separately for upregulated and downregulated genes to identify GO pathways that are significantly enriched in each group, compared to what would be expected by chance. This allows for a clearer biological interpretation of distinct transcriptional programs activated or suppressed in the dataset.
+The dot plots below display all significantly enriched GO pathways. Each dot’s size represents the number of differentially expressed genes associated with the pathway, while the color reflects the statistical significance of the enrichment (adjusted p-value).
 
 
 ```{r over_representation_analysis, fig.width=10, results="asis"}
+
+pvalue_cutoff_ORA <- 0.05
+# qvalue <- 0.05
+
+
 genelist_df_A <- data.frame(
   gene = deg_A$gene,
   log2FC = deg_A$log2FoldChange
 )
+go_enrichment_A_up <- goenrichment(genelist_df_A, logfc_col = "log2FC", down = FALSE, n_genes = 100, pvalueCutoff = pvalue_cutoff_ORA, qvalueCutoff = qvalue)
+go_enrichment_A_down <- goenrichment(genelist_df_A, logfc_col = "log2FC", down = TRUE, n_genes = 100, pvalueCutoff = pvalue_cutoff_ORA, qvalueCutoff = qvalue)
 ```
 
 ```{r over_representation_analysis_up, fig.width=10, results="asis"}
-go_enrichment_A_up <- goenrichment(genelist_df_A, logfc_col = "log2FC", down = FALSE, n_genes = 100)
 if (nrow(go_enrichment_A_up@result) > 0) {
-  cat(paste0("### ORA - UP", "\n\n", vs_descr))
+  cat(paste("### ORA - UP", "\n\n-", vs_descr, "\n\n- P value cutoff:", pvalue_cutoff_ORA, "\n\n- Q value cutoff:", qvalue, "\n\n"))  
   print(dotplot(go_enrichment_A_up, label_format = 50) + 
         ggtitle("ORA (UPregulated genes)"))
 } else {
-  cat(paste0("### ORA - UP", "\n\n", vs_descr, ": ⚠️ No enrichment found\n\n"))
+  cat(paste("### ORA - UP", "\n\n-", vs_descr, ": No enrichment found\n\n- P value cutoff:", pvalue_cutoff_ORA, "\n\n- Q value cutoff:", qvalue, "\n\n"))
 }
 ```
 
 ```{r over_representation_analysis_down, fig.width=10, results="asis"}
-go_enrichment_A_down <- goenrichment(genelist_df_A, logfc_col = "log2FC", down = TRUE, n_genes = 100)
 if (nrow(go_enrichment_A_down@result) > 0) {
-  cat(paste0("### ORA - DOWN", "\n\n", vs_descr))
+  cat(paste("### ORA - DOWN", "\n\n-", vs_descr, "\n\n- P value cutoff:", pvalue_cutoff_ORA, "\n\n- Q value cutoff:", qvalue, "\n\n"))  
   print(dotplot(go_enrichment_A_down, label_format = 50) + 
         ggtitle("ORA (DOWNregulated genes)"))
 } else {
-  cat(paste0("### ORA - DOWN", "\n\n", vs_descr, ": ⚠️ No enrichment found\n\n"))
+  cat(paste("### ORA - DOWN", "\n\n-", vs_descr, ": No enrichment found\n\n- P value cutoff:", pvalue_cutoff_ORA, "\n\n- Q value cutoff:", qvalue, "\n\n"))
 }
 ```
 
